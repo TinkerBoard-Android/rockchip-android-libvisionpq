@@ -80,14 +80,19 @@ struct _rkpq_cvt_cfg;
 struct _rkpq_csc_cfg;
 struct _rkpq_dci_cfg;
 struct _rkpq_acm_cfg;
-struct _rkpq_sr_cfg;
 struct _rkpq_zme_cfg;
 struct _rkpq_shp_cfg;
+struct _rkpq_mlc_cfg;
+struct _rkpq_sr_cfg;
 struct _rkpq_sd_cfg;
 struct _rkpq_dbmsr_cfg;
 struct _rkpq_dm_cfg;
-struct _rkpq_fe_cfg;
+struct _rkpq_dfc_cfg;
+struct _rkpq_de_cfg;
+struct _rkpq_dd_cfg;
 struct _rkpq_shp_acm_cfg;
+struct _rkpq_fe_cfg;
+struct _rkpq_mssr_cfg;
 
 /* the RKPQ modules, use rkpq_query() to check if supported */
 typedef enum _rkpq_module
@@ -472,8 +477,8 @@ typedef struct RKPQ_ATTR_ALIGN(16) _rkpq_shp_cfg
 typedef struct RKPQ_ATTR_ALIGN(16) _rkpq_mlc_cfg
 {
     uint32_t    bEnableMLC;         /* [i] {0, (1)} */
-    uint32_t    nBlockNumX;         /* [i] [(1), 16]*/
-    uint32_t    nBlockNumY;         /* [i] [(1), 16]*/
+    uint32_t    nBlockNumX;         /* [i] [(1), 16] */
+    uint32_t    nBlockNumY;         /* [i] [(1), 16] */
 
     uint32_t    aReservedData[1];   /* reserved for future use */
 } rkpq_mlc_cfg;

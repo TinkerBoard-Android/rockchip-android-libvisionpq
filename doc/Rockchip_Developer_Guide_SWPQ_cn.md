@@ -67,6 +67,8 @@ Rockchip Electronics Co., Ltd.
     - [已明确支持平台及性能数据](#已明确支持平台及性能数据)
     - [各模块理论带宽和占用率数据](#各模块理论带宽和占用率数据)
     - [各模块支持的输入/输出图像格式](#各模块支持的输入输出图像格式)
+    - [AI 模块对应模型文件](#ai-模块对应模型文件)
+- [应用接口说明](#应用接口说明)
   - [SDK版本说明](#sdk版本说明)
     - [版本号格式与递增规则](#版本号格式与递增规则)
       - [SDK版本号格式与递增规则](#sdk版本号格式与递增规则)
@@ -98,7 +100,7 @@ Rockchip Electronics Co., Ltd.
     - [可执行程序使用介绍](#可执行程序使用介绍)
   - [debug \& tuning 工具](#debug--tuning-工具)
     - [通过PQTool进行tuning](#通过pqtool进行tuning)
-    - [通过adb properties进行tuning](#通过adb-properties进行tuning)
+    - [通过adb properties/env变量进行tuning](#通过adb-propertiesenv变量进行tuning)
     - [设置dump行为](#设置dump行为)
   - [疑难解答](#疑难解答)
     - [错误码](#错误码)
@@ -316,44 +318,47 @@ SWPQ (SoftWare Picture Quality) 主要功能是利用软件对输出画质进行
 1. 表中符号`x`表示相应分辨率情况下对应的模块不支持；
 2. 表中符号`TBD`表示未经过测试，数据缺失；
 3. 表中`lite`注释表示为简化后的算法模块
+4. 以上性能数据均在测试环境中以`performance`性能模式测得
+5. 如果AI模块的性能不符合预期，大概率和`librknnrt.so`的版本有关系，可以将板上`librknnrt.so`版本切换到模块对应模型编译的版本再次测试。（比如低版本的多核模型在高版本`librknnrt.so`环境中运行时，可能无法跑多核）
 
 ### 各模块理论带宽和占用率数据
 | 模块 | GPU占用率[%] | GPU带宽[MB/帧] | NPU带宽[MB/帧] | 总带宽[MB/帧] | 总带宽备注 |
 |:----:|:-----------:|:---------------|:---------------|:-------------| ---- |
-| CSC  | ~30% @60fps on RK3568 | 9MB   | \      | 9MB   | 1080P NV12 => 1080P NV12 |
-| DCI  | ~54% @60fps on RK3568 | 6MB   | \      | 6MB   | 1080P NV12 => 1080P NV12 |
-| ACM  | ~32% @60fps on RK3568 | 6MB   | \      | 6MB   | 1080P NV12 => 1080P NV12 |
-| SHP  | ~50% @60fps on RK3568 | 38MB  | \      | 38MB  | 1080P NV12 => 1080P NV12 |
-| ZME  | ~30% @60fps on RK3588 | 150MB | \      | 150MB | 1080P NV12 => 4K NV12 |
-| AISR | ~40% @30fps on RK3588 | 70MB  | 180MB  | 250MB | 1080P NV12 => 4K NV12 |
-| AISD |       暂无数据        | 2MB   | 2MB    | 4MB   | 1080P NV12 => 1080P NV12 |
-| AIDM | ~32% @30fps on RK3568 | 36MB  | 15MB   | 51MB  | 1080P NV12 => 1080P NV12 |
+| CSC  | ~30% @60fps on RK3568 | 3+3=6 | \      | 6   | 1080P NV12 => 1080P NV12 |
+| DCI  | ~54% @60fps on RK3568 | 2+2=4 | \      | 4   | 1080P NV12 => 1080P NV12, 仅计算Y通道 |
+| ACM  | ~32% @60fps on RK3568 | 3+3=6 | \      | 6   | 1080P NV12 => 1080P NV12 |
+| SHP  | ~50% @60fps on RK3568 | 2+2=4 | \      | 4   | 1080P NV12 => 1080P NV12, 仅计算Y通道 |
+| ZME  | ~30% @60fps on RK3588 | 9+18=27 | \    | 27  | 1080P NV12 => 4K NV12 |
+| AISR | ~40% @30fps on RK3588 | 11+14=25 | 180 | 205 | 1080P NV12 => 4K NV12 |
+| AISD |       TBD             | 3+0=3 | 2      |  5  | 1080P NV12 => 1080P NV12 |
+| AIDM | ~32% @30fps on RK3568 | 4+2=6 | 15     | 21  | 1080P NV12 => 1080P NV12, 仅计算Y通道 |
 | AIDFC| TBD | TBD | TBD | TBD | TBD |
 | AIDE | TBD | TBD | TBD | TBD | TBD |
 | AIDD | TBD | TBD | TBD | TBD | TBD |
-| MixFE | ~35% @30fps on RK3588 |       | ~430MB |       | 540P  NV12 => 4K NV12; 异步模式，延迟1帧 |
+| MixFE | ~35% @30fps on RK3588 |       | ~430 |       | 540P  NV12 => 4K NV12; 异步模式，延迟1帧 |
 | MixMSSR | TBD | TBD | TBD | TBD | TBD |
 
 注：
 1. 带宽数据根据右侧备注中输入输出图像和格式计算得到
+2. GPU带宽数据格式为"**输入带宽 + 输出带宽 = 总带宽**"
 
 ### 各模块支持的输入/输出图像格式
-| 模块 | 支持的输入/输出格式 | 备注 |
-|:----:|:--------------|:---------|
-| CSC  | 输入: YUV4xxSP_8bit, YUV444I_VU24, API中所有RGB系列 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24, API中所有RGB系列 | 一般情况下输出格式或色彩空间和输入不同 |
-| DCI  | 输入: YUV4xxSP_8bit, YUV444I_VU24, Y8 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24, Y8 | 输出格式和输入相同，只处理Y通道 |
-| ACM  | 输入: YUV4xxSP_8bit, YUV444I_VU24 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24 | 输出格式和输入相同 |
-| SHP  | 输入: YUV4xxSP_8bit, YUV444I_VU24, Y8 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24, Y8 | 输出格式和输入相同，只处理Y通道，full-range |
-| ZME  | 输入: YUV4xxSP_8bit, YUV444I_VU24, API中所有RGB系列, Y8, UV8 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24, API中所有RGB系列, Y8, UV8 | 一般不改变输入格式，注5 |
-| AISR | 输入: YUV4xxSP_8bit, YUV444I_VU24, Y8 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24, Y8 | 一般不改变输入格式，注5 |
-| AISD | 输入: YUV4xxSP_8bit, YUV444I_VU24, API中所有RGB系列 <br> 输出: 非图像输出 | 无图像输出 |
-| AIDM | 输入: YUV4xxSP_8bit, Y8 <br> 输出: YUV4xxSP_8bit, Y8 | 输出格式和输入相同，只处理Y通道 |
-| AIDFC| 输入: YUV420SP_NV12 <br> 输出: YUV444SP_NV24, RGBA8888 |  |
-| AIDE | 输入: RGB888 <br> 输出: RGB888 | |
-| AIDD | 输入: YUV420SP_NV12, RGB[A8]888 <br> 输出: YUV420SP_NV12 | |
-| MixSHPACM | 输入: YUV420SP_NV12, RGBA8888 <br> 输出: YUV420SP_NV12 | |
-| MixFE | 输入: TBD <br> 输出: TBD | TBD |
-| MixMSSR | 输入: TBD <br> 输出: TBD | TBD |
+| 模块 | 是否支持ROI | 支持的输入/输出格式 | 备注 |
+|:----:|:-----------:|:------------------|:------|
+| CSC  | 否 | 输入: YUV4xxSP_8bit, YUV444I_VU24, API中所有RGB系列 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24, API中所有RGB系列 | 一般情况下输出格式或色彩空间和输入不同 |
+| DCI  | 是 | 输入: YUV4xxSP_8bit, YUV444I_VU24, Y8 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24, Y8 | 输出格式和输入相同，只处理Y通道 |
+| ACM  | 否 | 输入: YUV4xxSP_8bit, YUV444I_VU24 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24 | 输出格式和输入相同 |
+| SHP  | 否 | 输入: YUV4xxSP_8bit, YUV444I_VU24, Y8 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24, Y8 | 输出格式和输入相同，只处理Y通道，full-range |
+| ZME  | 否 | 输入: YUV4xxSP_8bit, YUV444I_VU24, API中所有RGB系列, Y8, UV8 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24, API中所有RGB系列, Y8, UV8 | 一般不改变输入格式，注5 |
+| AISR | 是 | 输入: YUV4xxSP_8bit, YUV444I_VU24, Y8 <br> 输出: YUV4xxSP_8bit, YUV444I_VU24, Y8 | 一般不改变输入格式，注5 |
+| AISD | 否 | 输入: YUV4xxSP_8bit, YUV444I_VU24, API中所有RGB系列 <br> 输出: 非图像输出 | 无图像输出 |
+| AIDM | 是 | 输入: YUV4xxSP_8bit, Y8 <br> 输出: YUV4xxSP_8bit, Y8 | 输出格式和输入相同，只处理Y通道 |
+| AIDFC| 否 | 输入: YUV420SP_NV12 <br> 输出: YUV444SP_NV24, RGBA8888 |  |
+| AIDE | 否 | 输入: RGB888 <br> 输出: RGB888 | |
+| AIDD | 否 | 输入: YUV420SP_NV12, RGB[A8]888 <br> 输出: YUV420SP_NV12 | |
+| MixSHPACM | 否 | 输入: YUV420SP_NV12, RGBA8888 <br> 输出: YUV420SP_NV12 | |
+| MixFE | 否 | 输入: TBD <br> 输出: TBD | TBD |
+| MixMSSR | 否 | 输入: TBD <br> 输出: TBD | TBD |
 
 注：
 1. `YUV4xxSP_8bit`表示`YUV420SP_NV12, YUV422SP_NV16, YUV444SP_NV24`均支持。
@@ -383,7 +388,10 @@ SWPQ (SoftWare Picture Quality) 主要功能是利用软件对输出画质进行
 | MixMSSR | rkaipq_mssr_model0_IFBlockX4Stage0_rknn162_rk3576.rknn <br> rkaipq_mssr_model0_IFBlockX4Stage1_rknn162_rk3576.rknn <br> rkaipq_mssr_model0_IFBlockX4Stage2_rknn162_rk3576.rknn <br> rkaipq_mssr_model0_IFBlockX5Stage0_rknn162_rk3576.rknn <br> rkaipq_mssr_model0_IFBlockX5Stage1_rknn162_rk3576.rknn <br> rkaipq_mssr_model0_IFBlockX5Stage2_rknn162_rk3576.rknn <br> rkaipq_mssr_model0_NaturalSR540to1080_rknn162_rk3576.rknn <br> rkaipq_mssr_model0_NaturalSR1080to4K_rknn162_rk3576.rknn <br> rkaipq_mssr_model0_EbookSR480to960_rknn162_rk3576.rknn <br> rkaipq_mssr_model0_rd_rknn162_rk3576.rknn <br> rkaipq_mssr_model0_sd_rknn162_rk3576.rknn | 666d32453a82120735a238f2b2f723b0 <br> eb13784d88fd0b6788774b3832b9e614 <br> af98b60b1394df8e0b75943785d440a3 <br> 71ba442eb493c4a84c89201f6c1daa8a <br> 620161e6dd71ccb1e32d0241d268d12b <br> 4b2a3bafe215f816ac1251f463374ded <br> 70caba7674a7bb149102cbddb69e673e <br> b424c8159331ac993f555b7be32ff0ea <br> 9b435ba3603b06b909fc35ecc02c34fe <br> 315a865fbb8c0447fe3fe6bd7e0ddca0 <br> 8bf9787b62242f79ebd5904e80cd378f|
 
 注：
-以上模型文件为算法库内部文件，对应的发布文件后缀名为`.bin`，md5值与表内不一致。
+1. 以上模型文件为算法库内部文件，对应的发布文件后缀名为`.bin`，md5值与表内不一致。
+2. 随库提供的模型文件默认加载地址为: Android:`/vendor/etc/`, Linux: `/etc/`;
+3. `rkpq_set_cache_path()`接口结合`target=4`参数可以修改RKNN模型的加载地址，需要在`rkpq_init()`前调用。
+
 
 # 应用接口说明
 
@@ -822,29 +830,33 @@ int rkpq_set_target_platform(const char *pPlatformName);
 ### 通过PQTool进行tuning
 见《Rockchip_PQTool_Guide》。
 
-### 通过adb properties进行tuning
+### 通过adb properties/env变量进行tuning
 在Android系统下可以通过 adb properties 来 debug 和 tuning
+
+在Linux系统下可以通过环境变量完成同样的功能
 
 支持的 adb properties 有:
 
-| 属性名称 | 取值范围 | 控制行为 | 备注 |
-| ------- | -------- | ------- | ----- |
-| persist.vendor.rkpq.watermark | {0, 1} | 是否显示水印 | 开启后在零拷贝模式且没有虚地址传入的情况下，会做mmap，影响帧率 |
-| persist.vendor.rkpq.loglevel  | [0, 4] | 控制log等级 | log等级超过INFO，会影响帧率 |
-| persist.vendor.rkpq.logstep   | [0, 512] | 控制log显示频率 | |
-| persist.vendor.rkpq.corenum   | [0, 8] | Reserved |  |
-| persist.vendor.rkpq.dump      | [0, 15] | 控制dump行为 | 见后文详解 |
-| test.vendor.rkpq.roi.enable   | {0, 1} | 控制ROI行为开关 | 目前仅支持AISR/AIDM模块 |
-| persist.vendor.rkpq.all.prop_cover | {0, 1} | **强行覆盖设置标志** | 设1后由adb properties设定的参数会强制覆盖输入参数 |
-| persist.vendor.rkpq.all.proc_width | [0, 9600] | Deprecated |  |
-| persist.vendor.rkpq.csc.enable | {0, 1} | 开关CSC模块 | Deprecated |
-| persist.vendor.rkpq.dci.enable | {0, 1} | 开关DCI模块 | Deprecated |
-| persist.vendor.rkpq.acm.enable | {0, 1} | 开关ACM模块 | Deprecated |
-| persist.vendor.rkpq.shp.enable | {0, 1} | 开关SHP模块 | Deprecated |
-| persist.vendor.rkpq.sr.enable  | {0, 1} | 开关SR模块  | Deprecated |
-| persist.vendor.rkpq.zme.enable | {0, 1} | 开关ZME模块 | Deprecated |
+| Android属性名称 | Linux环境变量名称 |  取值范围 | 控制行为 | 备注 |
+| --------------- | ----------------- | ------- | -------- | ---- |
+| persist.vendor.rkpq.watermark | rkpq_watermark | [0, 1, 2] | 是否显示水印 | 开启后在零拷贝模式且没有虚地址传入的情况下，会做mmap，影响帧率 |
+| persist.vendor.rkpq.loglevel  | rkpq_loglevel | {[0, 4], 603892, 603893} | 控制log等级 | log等级超过INFO，会影响帧率 |
+| persist.vendor.rkpq.logstep   | rkpq_logstep | [0, 512] | 控制log显示频率 | |
+| persist.vendor.rkpq.corenum   | rkpq_corenum | [0, 8] | Reserved |  |
+| test.vendor.rkpq.dump         | rkpq_dump | [0, 15] | 控制dump行为 | 见后文详解 |
+| test.vendor.rkpq.roi.enable   | rkpq_roi_enable | {0, 1} | 控制ROI行为开关 | 目前仅支持DCI/AISR/AIDM模块 |
+| persist.vendor.rkpq.all.prop_cover | \ | {0, 1} | **强行覆盖设置标志** | 设1后由adb properties设定的参数会强制覆盖输入参数 |
+| persist.vendor.rkpq.all.proc_width | \ | [0, 9600] | Deprecated |  |
+| persist.vendor.rkpq.csc.enable | \ | {0, 1} | 开关CSC模块 | Deprecated |
+| persist.vendor.rkpq.dci.enable | \ | {0, 1} | 开关DCI模块 | Deprecated |
+| persist.vendor.rkpq.acm.enable | \ | {0, 1} | 开关ACM模块 | Deprecated |
+| persist.vendor.rkpq.shp.enable | \ | {0, 1} | 开关SHP模块 | Deprecated |
+| persist.vendor.rkpq.sr.enable  | \ | {0, 1} | 开关SR模块  | Deprecated |
+| persist.vendor.rkpq.zme.enable | \ | {0, 1} | 开关ZME模块 | Deprecated |
 
-**所有可设的属性以文档《pq_tuning.bat》为准。**
+注：
+1. **所有可设的属性以文档《pq_tuning.bat》为准。**
+2. Android属性中以'test'开头的字段，需要关闭SELinux才可以生效。 (`adb shell setenforce 0`)
 
 ### 设置dump行为
 ```shell
@@ -994,3 +1006,9 @@ PQ程序错误码如下：
     - 检查水印属性是否开启，可通过LOG关键字"watermark"确保水印flag开启，且输出图像宽度大于等于720.
     - 水印和图像均显示错位，大概率是输出图像虚宽配置不正确。
     - 水印显示错位，输出图像显示正常，有可能混淆了图像的宽和高两个参数。
+
+9. 显示画面每隔一段时间会发生闪烁，闪烁内容是之前的画面
+    执行命令`adb shell setprop test.vendor.rkpq.io.cache.clear 1`，查看是否解决问题，如果解决问题，则原因如下：
+      - fd-buffer存在释放和重新申请的操作，新申请的buffer的fd数值与之前释放的一致，导致算法内部缓存的buffer数据无法和实际buffer对应上，往往在输入信号源变化时发生；
+      - `setprop test.vendor.rkpq.io.cache.clear`命令清楚了算法内的缓存，强制fd-buffer重新映射，故能解决该问题；
+      - 最佳方式是获取fd-buffer的**唯一标识符**，并将其填至`rkpq_imgbuf_info::nFdIndex`属性上。

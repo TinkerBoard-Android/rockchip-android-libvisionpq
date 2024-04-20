@@ -34,73 +34,109 @@
 # limitations under the License.
 LOCAL_PATH := $(call my-dir)
 
-# RK3588
+# ifeq ($(strip $(BOARD_USES_LIBPQ)),true)
+
+## RK3588
 ifneq ($(filter rk3588, $(strip $(TARGET_BOARD_PLATFORM))), )
-TARGET_SOC_PLATFORM := rk3588
-USE_LIBSWPQ := true
-USE_LIBHWPQ := false
+    TARGET_SOC_PLATFORM := rk3588
+    USE_LIBSWPQ := true
+    USE_LIBHWPQ := false
 endif
 
-# rk3576
+## RK3576
 ifneq ($(filter rk3576, $(strip $(TARGET_BOARD_PLATFORM))), )
-TARGET_SOC_PLATFORM := rk3576
-USE_LIBSWPQ := false
-USE_LIBHWPQ := true
+    TARGET_SOC_PLATFORM := rk3576
+    USE_LIBSWPQ := true
+    USE_LIBHWPQ := true
 endif
 
+## TODO: RK356X
+
+
+## define target lib path according to TARGET_SOC_PLATFORM
 TARGET_PQ_LIB_PATH := lib/Android/$(TARGET_SOC_PLATFORM)/
 
-# SWPQ lib
-ifeq ($(strip $(USE_LIBSWPQ)),true)
-include $(CLEAR_VARS)
-LOCAL_MODULE := librkswpq
-LOCAL_MODULE_CLASS := SHARED_LIBRARIES
-LOCAL_MODULE_SUFFIX := .so
 
-LOCAL_SHARED_LIBRARIES += \
-	librknnrt
+## SWPQ lib
+ifeq ($(strip $(USE_LIBSWPQ)), true)
+    include $(CLEAR_VARS)
+    LOCAL_MODULE := librkswpq
+    LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+    LOCAL_MODULE_SUFFIX := .so
 
-ifneq ($(strip $(TARGET_2ND_ARCH)), )
-LOCAL_MULTILIB := both
-LOCAL_SRC_FILES_$(TARGET_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_CPU_ABI)/librkswpq.so
-LOCAL_SRC_FILES_$(TARGET_2ND_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_2ND_CPU_ABI)/librkswpq.so
-else
-LOCAL_SRC_FILES_$(TARGET_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_CPU_ABI)/librkswpq.so
-endif
+    LOCAL_SHARED_LIBRARIES += \
+        librknnrt
 
-LOCAL_CHECK_ELF_FILES := false
-LOCAL_VENDOR_MODULE := true
-LOCAL_MODULE_SUFFIX := .so
-include $(BUILD_PREBUILT)
-endif
+    ifneq ($(strip $(TARGET_2ND_ARCH)), )
+        LOCAL_MULTILIB := both
+        LOCAL_SRC_FILES_$(TARGET_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_CPU_ABI)/librkswpq.so
+        LOCAL_SRC_FILES_$(TARGET_2ND_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_2ND_CPU_ABI)/librkswpq.so
+    else
+        LOCAL_SRC_FILES_$(TARGET_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_CPU_ABI)/librkswpq.so
+    endif
 
-ifneq ($(filter rk3576, $(strip $(TARGET_BOARD_PLATFORM))), )
-include $(CLEAR_VARS)
-LOCAL_MODULE := rkaipq_mssr_model0_EbookSR480to960_rknn162_rk3576.bin
-LOCAL_PROPRIETARY_MODULE := true
-LOCAL_MODULE_CLASS := ETC
-LOCAL_SRC_FILES := models/$(TARGET_SOC_PLATFORM)/rkaipq_mssr_model0_EbookSR480to960_rknn162_rk3576.bin
-include $(BUILD_PREBUILT)
+    LOCAL_CHECK_ELF_FILES := false
+    LOCAL_VENDOR_MODULE := true
+    LOCAL_MODULE_SUFFIX := .so
+    LOCAL_REQUIRED_MODULES := rkaipq_mssr_model0_EbookSR480to960_rknn162_rk3576.bin
+    include $(BUILD_PREBUILT)
 endif
 
 ## HWPQ lib
-ifeq ($(strip $(USE_LIBHWPQ)),true)
-include $(CLEAR_VARS)
-LOCAL_MODULE := librkhwpq
-LOCAL_MODULE_CLASS := SHARED_LIBRARIES
-LOCAL_MODULE_SUFFIX := .so
+ifeq ($(strip $(USE_LIBHWPQ)), true)
+    include $(CLEAR_VARS)
+    LOCAL_MODULE := librkhwpq
+    LOCAL_MODULE_CLASS := SHARED_LIBRARIES
+    LOCAL_MODULE_SUFFIX := .so
 
-ifneq ($(strip $(TARGET_2ND_ARCH)), )
-LOCAL_MULTILIB := both
-LOCAL_SRC_FILES_$(TARGET_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_CPU_ABI)/librkhwpq.so
-LOCAL_SRC_FILES_$(TARGET_2ND_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_2ND_CPU_ABI)/librkhwpq.so
-else
-LOCAL_SRC_FILES_$(TARGET_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_CPU_ABI)/librkhwpq.so
+    ifneq ($(strip $(TARGET_2ND_ARCH)), )
+        LOCAL_MULTILIB := both
+        LOCAL_SRC_FILES_$(TARGET_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_CPU_ABI)/librkhwpq.so
+        LOCAL_SRC_FILES_$(TARGET_2ND_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_2ND_CPU_ABI)/librkhwpq.so
+    else
+        LOCAL_SRC_FILES_$(TARGET_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_CPU_ABI)/librkhwpq.so
+    endif
+
+    LOCAL_CHECK_ELF_FILES := false
+    LOCAL_VENDOR_MODULE := true
+    LOCAL_MODULE_SUFFIX := .so
+    include $(BUILD_PREBUILT)
 endif
 
-LOCAL_CHECK_ELF_FILES := false
-LOCAL_VENDOR_MODULE := true
-LOCAL_MODULE_SUFFIX := .so
-include $(BUILD_PREBUILT)
+## RKNN models for AI sub-modules
+SOURCE_RKNN_MODEL_PATH := $(LOCAL_PATH)/models/$(TARGET_SOC_PLATFORM)/
+TARGET_RKNN_MODEL_PATH := $(TARGET_OUT_VENDOR)/etc/
+
+# BOARD_ENABLE_AIPQ_DFC := true
+ifeq ($(BOARD_ENABLE_AIPQ_DFC), true)
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_dfc_*.bin $(TARGET_RKNN_MODEL_PATH))
+endif
+# BOARD_ENABLE_AIPQ_DM := true
+ifeq ($(BOARD_ENABLE_AIPQ_DM), true)
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_dm_*.bin $(TARGET_RKNN_MODEL_PATH))
+endif
+# BOARD_ENABLE_AIPQ_SDSR := true
+ifeq ($(BOARD_ENABLE_AIPQ_SDSR), true)
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_sd_*.bin $(TARGET_RKNN_MODEL_PATH))
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_sr_*.bin $(TARGET_RKNN_MODEL_PATH))
+endif
+# BOARD_ENABLE_AIPQ_DDDE := true
+ifeq ($(BOARD_ENABLE_AIPQ_DDDE), true)
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_dd_*.bin $(TARGET_RKNN_MODEL_PATH))
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_de_*.bin $(TARGET_RKNN_MODEL_PATH))
+endif
+# BOARD_ENABLE_AIPQ_EBOOK_PRODUCT := true
+ifeq ($(BOARD_ENABLE_AIPQ_EBOOK_PRODUCT), true)
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_mssr_model0_EbookSR*.bin $(TARGET_RKNN_MODEL_PATH))
+endif
+# BOARD_ENABLE_AIPQ_PROJECTOR_PRODUCT := true
+ifeq ($(BOARD_ENABLE_AIPQ_PROJECTOR_PRODUCT), true)
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_mssr_model*_IFBlockX*.bin $(TARGET_RKNN_MODEL_PATH))
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_mssr_model*_NaturalSR*.bin $(TARGET_RKNN_MODEL_PATH))
+    # $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_mssr_model*_rd*.bin $(TARGET_RKNN_MODEL_PATH))
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_mssr_model*_sd*.bin $(TARGET_RKNN_MODEL_PATH))
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_mssr_model*_std*.bin $(TARGET_RKNN_MODEL_PATH))
+    $(shell cp -f $(SOURCE_RKNN_MODEL_PATH)/rkaipq_mssr_model*_f*.bin $(TARGET_RKNN_MODEL_PATH))
 endif
 
+# endif

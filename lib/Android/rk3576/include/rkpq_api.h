@@ -16,7 +16,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 //
-// Last update on 2024-04-09
+// Last update on 2024-05-31
 
 #pragma once
 #ifndef __RKPQ_API_H_
@@ -80,14 +80,21 @@ struct _rkpq_cvt_cfg;
 struct _rkpq_csc_cfg;
 struct _rkpq_dci_cfg;
 struct _rkpq_acm_cfg;
-struct _rkpq_sr_cfg;
 struct _rkpq_zme_cfg;
 struct _rkpq_shp_cfg;
+struct _rkpq_mlc_cfg;
+struct _rkpq_cgc_cfg;
+struct _rkpq_sr_cfg;
 struct _rkpq_sd_cfg;
 struct _rkpq_dbmsr_cfg;
 struct _rkpq_dm_cfg;
-struct _rkpq_fe_cfg;
+struct _rkpq_dfc_cfg;
+struct _rkpq_de_cfg;
+struct _rkpq_dd_cfg;
 struct _rkpq_shp_acm_cfg;
+struct _rkpq_fe_cfg;
+struct _rkpq_mssr_cfg;
+
 
 /* the RKPQ modules, use rkpq_query() to check if supported */
 typedef enum _rkpq_module
@@ -102,6 +109,8 @@ typedef enum _rkpq_module
     RKPQ_MODULE_ZME     = 5,        /* Zoom Manage Engine */
     RKPQ_MODULE_SHP     = 6,        /* Sharpen */
     RKPQ_MODULE_MLC     = 7,        /* Mean Luminance Calculation */
+    RKPQ_MODULE_CGC     = 8,        /* Color Gamut Conversion */ 
+    RKPQ_MODULE_BLR     = 9,        /* Region Gauss Blur */ 
     RKPQ_MODULE_MAX,                /* please DO NOT use this item! */
 
     /* AI Modules, need RKNN support */
@@ -199,6 +208,23 @@ typedef enum _rkpq_color_space
     RKPQ_CLR_SPC_RGB_FULL,              /* RGB Full-range */
     RKPQ_CLR_SPC_MAX,                   /* the max color space value, please DO NOT use this item! */
 } rkpq_clr_spc;
+
+typedef enum _rkpq_color_gamut_conversion_mode
+{
+    RKPQ_CGC_MANUAL = 0, //use api config mat
+    RKPQ_CGC_BT2020_TO_BT709,
+    RKPQ_CGC_BT2020_TO_P3,
+    RKPQ_CGC_P3_TO_BT709,
+    RKPQ_CGC_MAT_MAX,
+}rkpq_cgc_mat;
+
+typedef enum _rkpq_color_transfer_characteristics
+{
+    RKPQ_CGC_TRC_DEFAULT = 0, //gamma 2.2
+    RKPQ_CGC_TRC_BT1886,      //gamma 2.4
+    RKPQ_CGC_TRC_ST2084,      //ST2084(HDR10) for HDR
+    RKPQ_CGC_TRC_MAX,
+}rkpq_cgc_trc;
 
 /* the information for RKPQ_QUERY_SDK_VERSION */
 typedef struct _rkpq_version_info
@@ -472,11 +498,44 @@ typedef struct RKPQ_ATTR_ALIGN(16) _rkpq_shp_cfg
 typedef struct RKPQ_ATTR_ALIGN(16) _rkpq_mlc_cfg
 {
     uint32_t    bEnableMLC;         /* [i] {0, (1)} */
-    uint32_t    nBlockNumX;         /* [i] [(1), 16]*/
-    uint32_t    nBlockNumY;         /* [i] [(1), 16]*/
-
+    uint32_t    nBlockNumX;         /* [i] [(1), 16] */
+    uint32_t    nBlockNumY;         /* [i] [(1), 16] */
+    uint32_t    nMeanLuma;          /* [o] output mean luma value */
     uint32_t    aReservedData[1];   /* reserved for future use */
 } rkpq_mlc_cfg;
+
+/* CGC configuration */
+typedef struct RKPQ_ATTR_ALIGN(16) _rkpq_cgc_cfg
+{
+//    rkpq_pipe_fmt_info  stPipeFmtInfo;  /* format change info, must set manually */
+//    rkpq_pipe_res_info  stPipeResInfo;  /* resolution change info, must set manually */
+
+    uint32_t    bEnableCGC;         /* [i] {0, (1)} */
+    uint32_t    nCgcTrcMode;        /* [i] refer to "rkpq_cgc_trc" */
+    uint32_t    nCgcMatMode;        /* [i] refer to "rkpq_cgc_mat" */
+    int32_t     nCgcMatCoef[9];     /* [i] matrix coefficients for color gamut conversion, fixed point in 10bit(1024) */
+
+    uint32_t    bEnablePaperMode;   /* [i] {0, (1)} */
+    uint32_t    nTextureStrength;   /* [i] texture strength, range: [0, 15] */
+
+    uint32_t    aReservedData[1];   /* reserved for future use */
+} rkpq_cgc_cfg;
+
+/* Region Gauss Blur */
+typedef struct RKPQ_ATTR_ALIGN(16) _rkpq_blr_cfg
+{
+    rkpq_pipe_fmt_info  stPipeFmtInfo;  /* format change info, must set manually */
+
+    uint32_t    bEnableBLR;         // [i] {0, (1)}
+    uint32_t    nCenterX;           // [i] blur region center point-x [0, (960), 1920)
+    uint32_t    nCenterY;           // [i] blur region center point-y [0, (540), 1080)
+    uint32_t    nRadius;            // [i] blur region radius         [0, (100), Inf)
+    uint32_t    nGaussKerWid;       // [i] gauss ker width            {1, (3), 5, 7, ..., 63}
+    uint32_t    nGaussKerHgt;       // [i] gauss ker herght           {1, (3), 5, 7, ..., 63}
+    float       fGaussKerSigma;     // [i] gauss ker sigma            [0, (0.5), Inf)
+
+    uint32_t    aReservedData[1];   // reserved for future use
+} rkpq_blr_cfg;
 
 /* AI SR configuration */
 typedef struct RKPQ_ATTR_ALIGN(16) _rkpq_sr_cfg
@@ -512,6 +571,8 @@ typedef struct RKPQ_ATTR_ALIGN(16) _rkpq_sd_cfg
     uint32_t    bEnableSD;          // [0, (1)]
     uint32_t    bEnableAISD;        // [0, (1)]
 
+    float       aSDResult[128];     // output: [NumScene, SceneDataFrame#0, SceneDataFrame#1, ...]
+    
     uint32_t    aReservedData[1];   // reserved for future use
 } rkpq_sd_cfg;
 
@@ -637,6 +698,10 @@ typedef struct RKPQ_ATTR_ALIGN(16) _rkpq_mssr_cfg
 
     rkpq_sr_cfg    *pSRConfig;
     rkpq_sd_cfg    *pSDConfig;
+    
+    uint32_t        nSchemeIdx;         /* [i] ME scheme idx  {(0), 1, 2} */
+    uint32_t        nMEMCStrength;      /* [i] MEMC strength  [0, (100)] */
+    uint32_t        bEnableFE;          /* [i] enable FaceEnhance {0, (1)} */
 
     uint32_t        aReservedData[1];   /* reserved for future use */
 } rkpq_mssr_cfg;
@@ -717,10 +782,20 @@ int rkpq_set_loglevel(rkpq_context ctx, int logLevel);
  * @Params:
  *      rkpq_context ctx - set to NULL before calling rkpq_init()
  *      const char *pPath - the folder path, ends with '/'
- *      int target - bitfield, 1 for Ocl caches, 2 for RKNN models, 4 for license path, 0 for all
+ *      int target - bitfield, 1 for Ocl caches, 2 for RKNN models, 4 for license path, 8 for librga path, 0 for all
  * @Return: error code, 0 indicates everything is ok.
  */
 int rkpq_set_cache_path(rkpq_context ctx, const char *pPath, int target);
+
+/**
+ * @Function: rkpq_clear_caches()
+ * @Descrptn: clear the old IO buffer caches, used when the input/output buffers are changed.
+ * @Params:
+ *      rkpq_context ctx - the pq handle of context
+ *      int flag - bitfield, set to 1 for now
+ * @Return: error code, 0 indicates everything is ok.
+ */
+int rkpq_clear_caches(rkpq_context ctx, int flag);
 
 /**
  * @Function: rkpq_set_default_cfg()

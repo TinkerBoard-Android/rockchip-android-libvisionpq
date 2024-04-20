@@ -16,7 +16,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 //
-// Last update 2024-04-10 for librkswpq.so v0.1.0
+// Last update 2024-06-13 for librkswpq.so v0.1.0
 
 
 #include "rkpq_api.h"
@@ -61,7 +61,12 @@ int setPipelineDemoSR(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc_
 int setPipelineDemoZME(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc_params *pProcParam);
 /* Inpu -> AI_DFC -> Output */
 int setPipelineDemoDFC(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc_params *pProcParam);
-
+/* Input -> CSC -> CGC -> CSC -> Output */
+int setPipelineDemoCGC(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc_params *pProcParam);
+/* Input -> BLR -> Output */
+int setPipelineDemoBLR(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc_params *pProcParam);
+/* Input -> MSSR_FE -> Output */
+int setPipelineDemoMSSR_FE(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc_params *pProcParam);
 
 //////////////////////////////////////////////////////////////////////////
 ////---- main
@@ -102,6 +107,12 @@ int main(int argc, const char *argv[])
     case 2:
         setPipelineDemoDFC(nullptr, &initParams, nullptr);  // demo that use AI_DFC to do de-false-coloring
         break;
+    case 3:
+        setPipelineDemoCGC(nullptr, &initParams, nullptr);  // demo that use CGC to do color gamut conversion
+        break;
+    case 4:
+        setPipelineDemoBLR(nullptr, &initParams, nullptr);  // demo that use BLR to do region gauss blur
+        break;
     default:
         setPipelineDemoZME(nullptr, &initParams, nullptr);  // demo that use ZME to do arbitrary resolution scaling
         break;
@@ -133,6 +144,12 @@ int main(int argc, const char *argv[])
         break;
     case 2:
         setPipelineDemoDFC(context, nullptr, &procParams);  // demo that use AI_DFC to do de-false-coloring
+        break;
+    case 3:
+        setPipelineDemoCGC(context, nullptr, &procParams);  // demo that use CGC to do color gamut conversion
+        break;
+    case 4:
+        setPipelineDemoBLR(context, nullptr, &procParams);  // demo that use BLR to do region gauss blur
         break;
     default:
         setPipelineDemoZME(context, nullptr, &procParams);  // demo that use ZME to do arbitrary resolution scaling
@@ -170,7 +187,7 @@ int main(int argc, const char *argv[])
     procParams.bEnablePropControl   = 0;    // set to 1 if want to use `adb properties` to control the effects
     procParams.bEnableSliderControl = 0;    // set to 1 if want to use `PQTool` to control the effects (works only when bEnablePropControl=0)
     // set ROI to the area you want, value range: [0, dst_width] / [0, dst_height]
-    // below ROI set the processing area to the right half side of the source image
+    // below ROI set the processing area to the right half side of the output image
     procParams.stImgRoi.bEnableRoi = 0;     // set to 1 if want to apply ROI feature
     procParams.stImgRoi.x = stDstImgInfo.nPixWid / 2;
     procParams.stImgRoi.y = 0;
@@ -186,7 +203,17 @@ int main(int argc, const char *argv[])
     {
         // input: read data to fill stSrcImgInfo.aPlaneAddrs
         /*
-        fread(stSrcImgInfo.aPlaneAddrs[0], sizeof(unsigned char), stSrcImgInfo.nFrameSize, fpIn);
+        FILE* fpIn = fopen("/data/blr_1920x1080_src_rgb.yuv", "rb");
+        if (fpIn != NULL)
+        {
+            printf("read: /data/blr_1920x1080_src_rgb.yuv .\n");
+            fread(stSrcImgInfo.aPlaneAddrs[0], sizeof(unsigned char), stSrcImgInfo.nFrameSize, fpIn);
+            fclose(fpIn);
+        }
+        else
+        {
+            printf("Fail to open %s /data/blr_1920x1080_rgb.yuv\n");
+        }
         */
 
         /* for multi-input-output modules,
@@ -207,7 +234,17 @@ int main(int argc, const char *argv[])
 
         // output: stDstImgInfo.aPlaneAddrs
         /*
-        fread(stDstImgInfo.aPlaneAddrs[0], sizeof(unsigned char), stDstImgInfo.nFrameSize, fpOut);
+        FILE* fpOut = fopen("/data/blr_1920x1080_dst_rgb.yuv", "wb");
+        if (fpIn != NULL)
+        {
+            printf("write: adb pull /data/blr_1920x1080_dst_rgb.yuv .\n");
+            fwrite(stDstImgInfo.aPlaneAddrs[0], sizeof(unsigned char), stDstImgInfo.nFrameSize, fpOut);
+            fclose(fpIn);
+        }
+        else
+        {
+            printf("Fail to open %s /data/blr_1920x1080_rgb_test.yuv\n");
+        }
         */
 
         frameIdx++;
@@ -394,12 +431,12 @@ int setPipelineDemoSR(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc_
         pProcParam->bEnablePropControl   = 0;    // set to 1 if want to use `adb properties` to control the effects
         pProcParam->bEnableSliderControl = 0;    // set to 1 if want to use `PQTool` to control the effects (works only when bEnablePropControl=0)
         // set ROI to the area you want, value range: [0, src_width] / [0, src_height]
-        // below ROI set the processing area to the right half side of the source image
+        // below ROI set the processing area to the right half side of the output image
         pProcParam->stImgRoi.bEnableRoi = 0;    // set to 1 if want to apply ROI feature
-        pProcParam->stImgRoi.x = stSrcImgInfo.nPixWid / 2;
+        pProcParam->stImgRoi.x = stDstImgInfo.nPixWid / 2;
         pProcParam->stImgRoi.y = 0;
-        pProcParam->stImgRoi.w = stSrcImgInfo.nPixWid / 2;
-        pProcParam->stImgRoi.h = stSrcImgInfo.nPixHgt;
+        pProcParam->stImgRoi.w = stDstImgInfo.nPixWid / 2;
+        pProcParam->stImgRoi.h = stDstImgInfo.nPixHgt;
         pProcParam->nExtenType = 0;      // reserved, set to 0
         pProcParam->pExtenConfig = NULL; // reserved, set to NULL
 
@@ -522,12 +559,12 @@ int setPipelineDemoZME(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc
         pProcParam->bEnablePropControl   = 0;    // set to 1 if want to use `adb properties` to control the effects
         pProcParam->bEnableSliderControl = 0;    // set to 1 if want to use `PQTool` to control the effects (works only when bEnablePropControl=0)
         // set ROI to the area you want, value range: [0, src_width] / [0, src_height]
-        // below ROI set the processing area to the right half side of the source image
+        // below ROI set the processing area to the right half side of the output image
         pProcParam->stImgRoi.bEnableRoi = 0;    // set to 1 if want to apply ROI feature
-        pProcParam->stImgRoi.x = stSrcImgInfo.nPixWid / 2;
+        pProcParam->stImgRoi.x = stDstImgInfo.nPixWid / 2;
         pProcParam->stImgRoi.y = 0;
-        pProcParam->stImgRoi.w = stSrcImgInfo.nPixWid / 2;
-        pProcParam->stImgRoi.h = stSrcImgInfo.nPixHgt;
+        pProcParam->stImgRoi.w = stDstImgInfo.nPixWid / 2;
+        pProcParam->stImgRoi.h = stDstImgInfo.nPixHgt;
         pProcParam->nExtenType = 0;      // reserved, set to 0
         pProcParam->pExtenConfig = NULL; // reserved, set to NULL
 
@@ -538,52 +575,56 @@ int setPipelineDemoZME(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc
         rkpq_zme_cfg *pZmeConfig = (rkpq_zme_cfg *)rkpq_get_default_cfg(ctx, 3, RKPQ_MODULE_ZME);  // order 3 is the 4th module (ZME) in the pipeline
         rkpq_shp_cfg *pShpConfig = (rkpq_shp_cfg *)rkpq_get_default_cfg(ctx, 4, RKPQ_MODULE_SHP);  // order 4 is the 5th module (SHP) in the pipeline
         rkpq_csc_cfg *pCscConfig1 = (rkpq_csc_cfg *)rkpq_get_default_cfg(ctx, 5, RKPQ_MODULE_CSC); // order 4 is the last module(CSC) in the pipeline
+        if (!pCscConfig0 || !pDciConfig || !pAcmConfig || !pZmeConfig || !pShpConfig || !pCscConfig1)
+        {
+            printf("Failed to get the default config!\n");
+            rkpq_deinit(ctx);
+            return -1;
+        }
 
         // set the CSC pipeline format change info: from the src pixel format to YUV444SP_NV24
         //!NOTE: CSC模块输入格式和色彩空间一定和src一致
         //!NOTE: 由于后续的DCI/ACM模块只支持YUV格式, 故这里CSC的输出格式必须是YUV，且色彩空间必须是YUV full-range
-        if (pCscConfig0)
-        {
-            pCscConfig0->stPipeFmtInfo.nSrcClrSpc = stSrcImgInfo.nColorSpace;
-            pCscConfig0->stPipeFmtInfo.nSrcPixFmt = stSrcImgInfo.nPixFmt;
-            if (stDstImgInfo.nPixFmt < RKPQ_IMG_FMT_YUV_MAX) {
-                //!NOTE: 如果目标dst格式是YUV(如NV12), 这里可以直接输出成目标格式(不必非得转成NV24,可以减少计算量), 但色彩空间必须是full-range
-                pCscConfig0->stPipeFmtInfo.nDstClrSpc = stDstImgInfo.nColorSpace | 1; // to full-range
-                pCscConfig0->stPipeFmtInfo.nDstPixFmt = stDstImgInfo.nPixFmt;  // use as the dst format
-            } else {
-                //!NOTE: 如果目标dst格式不是YUV(如RGBA), 这里建议转成YUV444(NV24), 色彩空间必须是full-range
-                pCscConfig0->stPipeFmtInfo.nDstClrSpc = RKPQ_CLR_SPC_YUV_709_FULL; // default 709F
-                pCscConfig0->stPipeFmtInfo.nDstPixFmt = RKPQ_IMG_FMT_NV24; // default RGB->NV24
-            }
+        pCscConfig0->stPipeFmtInfo.nSrcClrSpc = stSrcImgInfo.nColorSpace;
+        pCscConfig0->stPipeFmtInfo.nSrcPixFmt = stSrcImgInfo.nPixFmt;
+        if (stDstImgInfo.nPixFmt < RKPQ_IMG_FMT_YUV_MAX) {
+            //!NOTE: 如果目标dst格式是YUV(如NV12), 这里可以直接输出成目标格式(不必非得转成NV24,可以减少计算量), 但色彩空间必须是full-range
+            pCscConfig0->stPipeFmtInfo.nDstClrSpc = stDstImgInfo.nColorSpace | 1; // to full-range
+            pCscConfig0->stPipeFmtInfo.nDstPixFmt = stDstImgInfo.nPixFmt;  // use as the dst format
         } else {
-            printf("Warning: failed to get the CSC_0 config!\n");
-            return -1;
+            //!NOTE: 如果目标dst格式不是YUV(如RGBA), 这里建议转成YUV444(NV24), 色彩空间必须是full-range
+            pCscConfig0->stPipeFmtInfo.nDstClrSpc = RKPQ_CLR_SPC_YUV_709_FULL; // default 709F
+            pCscConfig0->stPipeFmtInfo.nDstPixFmt = RKPQ_IMG_FMT_NV24; // default RGB->NV24
         }
-        if (pZmeConfig)
-        {
-            // set the ZME pipeline format change info: from YUV444SP_NV24 to the dst pixel format
-            //!NOTE: 由于前面两个模块(DCI/ACM)都不改变输入输出图像格式，故这里ZME的输入格式必定是CSC的输出格式，输出一般不改变格式
-            pZmeConfig->stPipeFmtInfo.nSrcClrSpc = pCscConfig0->stPipeFmtInfo.nDstClrSpc;
-            pZmeConfig->stPipeFmtInfo.nSrcPixFmt = pCscConfig0->stPipeFmtInfo.nDstPixFmt;
-            pZmeConfig->stPipeFmtInfo.nDstClrSpc = pCscConfig0->stPipeFmtInfo.nDstClrSpc;
-            pZmeConfig->stPipeFmtInfo.nDstPixFmt = pCscConfig0->stPipeFmtInfo.nDstPixFmt;
-            //!NOTE: ZME的输出在YUV格式的情况下可以直接在YUV4xxsp(NV24/NV16/NV12)之间转换，这里也可以不要此步骤，直接交给最后一级CSC完成转换
-            // if (stDstImgInfo.nPixFmt <= RKPQ_IMG_FMT_NV12) {
-            //     pZmeConfig->stPipeFmtInfo.nDstPixFmt = stDstImgInfo.nPixFmt;
-            // }
-            // set the ZME pipeline resolution change info: form src size (1920x1080 YUV444SP_NV24) to dst size (3840x2160 YUV422SP_NV16)
-            //!NOTE: ZME模块前/后面均没有其他模块会改变图像的分辨率，故这里的输入/输出分辨率一定是src和dst的分辨率
-            pZmeConfig->stPipeResInfo.nSrcImgWid = stSrcImgInfo.nPixWid;
-            pZmeConfig->stPipeResInfo.nSrcImgHgt = stSrcImgInfo.nPixHgt;
-            pZmeConfig->stPipeResInfo.nDstImgWid = stDstImgInfo.nPixWid;
-            pZmeConfig->stPipeResInfo.nDstImgHgt = stDstImgInfo.nPixHgt;
-        }
+
+        // set the ZME pipeline format change info: from YUV444SP_NV24 to the dst pixel format
+        //!NOTE: 由于前面两个模块(DCI/ACM)都不改变输入输出图像格式，故这里ZME的输入格式必定是CSC的输出格式，输出一般不改变格式
+        pZmeConfig->stPipeFmtInfo.nSrcClrSpc = pCscConfig0->stPipeFmtInfo.nDstClrSpc;
+        pZmeConfig->stPipeFmtInfo.nSrcPixFmt = pCscConfig0->stPipeFmtInfo.nDstPixFmt;
+        pZmeConfig->stPipeFmtInfo.nDstClrSpc = pCscConfig0->stPipeFmtInfo.nDstClrSpc;
+        pZmeConfig->stPipeFmtInfo.nDstPixFmt = pCscConfig0->stPipeFmtInfo.nDstPixFmt;
+        //!NOTE: ZME的输出在YUV格式的情况下可以直接在YUV4xxsp(NV24/NV16/NV12)之间转换，这里也可以不要此步骤，直接交给最后一级CSC完成转换
+        // if (stDstImgInfo.nPixFmt <= RKPQ_IMG_FMT_NV12) {
+        //     pZmeConfig->stPipeFmtInfo.nDstPixFmt = stDstImgInfo.nPixFmt;
+        // }
+        // set the ZME pipeline resolution change info: form src size (1920x1080 YUV444SP_NV24) to dst size (3840x2160 YUV422SP_NV16)
+        //!NOTE: ZME模块前/后面均没有其他模块会改变图像的分辨率，故这里的输入/输出分辨率一定是src和dst的分辨率
+        pZmeConfig->stPipeResInfo.nSrcImgWid = stSrcImgInfo.nPixWid;
+        pZmeConfig->stPipeResInfo.nSrcImgHgt = stSrcImgInfo.nPixHgt;
+        pZmeConfig->stPipeResInfo.nDstImgWid = stDstImgInfo.nPixWid;
+        pZmeConfig->stPipeResInfo.nDstImgHgt = stDstImgInfo.nPixHgt;
 
         /* (optional) adjust the specified configuration manually */
         // pCscConfig0->nColorTemperature = 7000;  // set CSC color temperature to 7000K
         // pDciConfig->bEnableDCI = 0;             // disable DCI module in the pipeline
         // pAcmConfig->nLumGain = 256;             // set ACM luminance gain to 256(1.0f)
         // pShpConfig->bEnableShootCtrl = 1;       // enable SHP shooting control
+
+        //!NOTE: CSC1模块的输入格式是前一级ZME(SHP不改变输出格式)的输出格式和色彩空间, 输出格式和色彩空间一定和dst一致
+        pCscConfig1->stPipeFmtInfo.nSrcClrSpc = pZmeConfig->stPipeFmtInfo.nDstClrSpc;
+        pCscConfig1->stPipeFmtInfo.nSrcPixFmt = pZmeConfig->stPipeFmtInfo.nDstPixFmt;
+        pCscConfig1->stPipeFmtInfo.nDstClrSpc = stDstImgInfo.nColorSpace; // from full to limited
+        pCscConfig1->stPipeFmtInfo.nDstPixFmt = stDstImgInfo.nPixFmt; // from NV24 to NV12
     }
     return ret;
 }
@@ -600,6 +641,7 @@ int setPipelineDemoDFC(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc
         /* set the custom pipeline order */
         pInitParam->aModPipeOrder[0] = RKPQ_MODULE_AI_DFC;
         pInitParam->nModNumInPipe = 1;  // only 1 module in the pipeline
+        pInitParam->nInitFlag = RKPQ_FLAG_ASYNC_MODE;
     }
 
     /* set proc parameters */
@@ -669,6 +711,371 @@ int setPipelineDemoDFC(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc
             pDmConfig->stPipeFmtInfo.nDstClrSpc = stDstImgInfo.nColorSpace;
             pDmConfig->stPipeFmtInfo.nDstPixFmt = stDstImgInfo.nPixFmt;
             pDmConfig->bEnableDFC = 1;  // enable AIDM feature, the DM module will run with NPU (need RKNN SDK v1.4)
+        }
+    }
+
+    return ret;
+}
+
+
+/* Below code shows a pipeline example for CGC modules: CSC => CGC => CSC */
+/* The data flow is: [1920x1080 yuv420sp (limited-range)] =CSC=> [1920x1080 rgb888 (full-range)]
+  = CGC => [1920x1080 rgb888 (full-range)] =CSC=> [1920x1080 yuv420sp (limited-range)] */
+int setPipelineDemoCGC(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc_params *pProcParam)
+{
+    int ret = 0;
+
+    /* set init parameters */
+    if (pInitParam)
+    {
+        /* set the custom pipeline order */
+        int order = 0;
+        pInitParam->aModPipeOrder[order++] = RKPQ_MODULE_CSC;   /* order 0 */
+        pInitParam->aModPipeOrder[order++] = RKPQ_MODULE_CGC;   /* order 1 */
+        pInitParam->aModPipeOrder[order++] = RKPQ_MODULE_CSC;   /* order 2 */
+        pInitParam->nModNumInPipe = order;                      /* module num in the pipeline */
+    }
+
+    /* set proc parameters */
+    if (pProcParam && ctx)
+    {
+        rkpq_imgbuf_info &stSrcImgInfo = pProcParam->stSrcImgInfo;
+        rkpq_imgbuf_info &stDstImgInfo = pProcParam->stDstImgInfo;
+
+        /* set the image info */
+        stSrcImgInfo.nColorSpace = RKPQ_CLR_SPC_YUV_709_LIMITED;    // see rkpq_clr_spc, limited-range here
+        stSrcImgInfo.nPixFmt = RKPQ_IMG_FMT_NV12;                // see rkpq_img_fmt, nv12 here
+        stSrcImgInfo.nPixWid = 1920;                            // set the input image width
+        stSrcImgInfo.nPixHgt = 1080;                            // set the input image height
+        stSrcImgInfo.nEleDepth = 8;                             // set the first component(Y or R) depth [bit]
+        stSrcImgInfo.nAlignment = 64;                           // set the pitch alignment [byte], better equal to 'imgAlignment' queried before
+        stDstImgInfo.nColorSpace = RKPQ_CLR_SPC_YUV_709_LIMITED;   // see rkpq_clr_spc, same as the input image
+        stDstImgInfo.nPixFmt = RKPQ_IMG_FMT_NV12;               // see rkpq_img_fmt, same as the input image
+        stDstImgInfo.nPixWid = 1920;                            // set the output image width
+        stDstImgInfo.nPixHgt = 1080;                            // set the output image height
+        stDstImgInfo.nEleDepth = 8;                             // set the first component(Y or R) depth [bit]
+        stDstImgInfo.nAlignment = 64;                            // aWidStrides[0] will be set to 3840 when rkpq_query() called with 'RKPQ_QUERY_IMG_BUF_INFO'
+        stDstImgInfo.aWidStrides[0] = 1920;                     // or you can set it manually according to the real case
+
+        /** (optional)
+         * call rkpq_query() to get the remain image buffer infos
+         * no need to call rkpq_query() ONLY IF you know and filled all the rkpq_imgbuf_info of the src & dst images
+         */
+    #if 1 /* not necessary */
+        ret |= rkpq_query(NULL, RKPQ_QUERY_IMG_BUF_INFO, sizeof(rkpq_imgbuf_info), &stSrcImgInfo);
+        ret |= rkpq_query(NULL, RKPQ_QUERY_IMG_BUF_INFO, sizeof(rkpq_imgbuf_info), &stDstImgInfo);
+        if (ret)
+        {
+            printf("Failed to call rkpq_query() %d, Please check the API parameters!\n", ret);
+            return ret;
+        }
+
+        /* !!! change the width / height stride IF the query result of rkpq_imgbuf_info is different with the real buffer !!! */
+        // stDstImgInfo.aWidStrides[1] = 1920; // 1856 -> 1920, padding aligns to 64 bytes on the chroma plane
+        // stDstImgInfo.aPlaneSizes[1] += (1920 - 1856) * stDstImgInfo.aHgtStrides[1]; // update the chroma plane size
+        // stDstImgInfo.nFrameSize += (1920 - 1856) * stDstImgInfo.aHgtStrides[1]; // update the total frame size
+    #endif
+
+        /* set the buffer info */
+    #if 1
+        // set buffer info with imported hardware buffer of input & output. Recommend
+        int fdSrc = 0, fdDst = 0;           // create hardware buffer then import through fd value
+        int fdSrcIdx = 0, fdDstIdx = 0;     // create hardware buffer then import through fd value
+        /* create hardware buffers to make 'fdSrc' & 'fdDst' valid... */
+        /* ... */
+        // set the fd values
+        stSrcImgInfo.nFdValue = fdSrc;
+        stDstImgInfo.nFdValue = fdDst;
+        stSrcImgInfo.nFdIndex = fdSrcIdx;   // unique identifier of the device buffer
+        stDstImgInfo.nFdIndex = fdDstIdx;
+    #else
+        // or malloc input & output bufs
+        stSrcImgInfo.aPlaneAddrs[0] = (unsigned char*)malloc(stSrcImgInfo.nFrameSize);  // please make sure the src buffer is valid and >= stSrcImgInfo.nFrameSize
+        stDstImgInfo.aPlaneAddrs[0] = (unsigned char*)malloc(stDstImgInfo.nFrameSize);  // please make sure the dst buffer is valid and >= stDstImgInfo.nFrameSize
+    #endif
+        stSrcImgInfo.nBufferSize = stSrcImgInfo.nFrameSize; /* real buffer sieze, should be >= nFrameSize! unit: byte */
+        stDstImgInfo.nBufferSize = stDstImgInfo.nFrameSize; /* real buffer sieze, should be >= nFrameSize! unit: byte */
+
+        /* set other proc parameters */
+        pProcParam->bEnablePropControl   = 0;    // set to 1 if want to use `adb properties` to control the effects
+        pProcParam->bEnableSliderControl = 0;    // set to 1 if want to use `PQTool` to control the effects (works only when bEnablePropControl=0)
+        // set ROI to the area you want, value range: [0, src_width] / [0, src_height]
+        // below ROI set the processing area to the right half side of the output image
+        pProcParam->stImgRoi.bEnableRoi = 0;    // set to 1 if want to apply ROI feature
+        pProcParam->stImgRoi.x = stDstImgInfo.nPixWid / 2;
+        pProcParam->stImgRoi.y = 0;
+        pProcParam->stImgRoi.w = stDstImgInfo.nPixWid / 2;
+        pProcParam->stImgRoi.h = stDstImgInfo.nPixHgt;
+        pProcParam->nExtenType = 0;      // reserved, set to 0
+        pProcParam->pExtenConfig = NULL; // reserved, set to NULL
+
+        /* set the 'rkpq_pipe_fmt_info' & 'rkpq_pipe_res_info' since the image format or resolution will change in the pipeline! */
+        rkpq_csc_cfg *pCscConfig0 = (rkpq_csc_cfg *)rkpq_get_default_cfg(ctx, 0, RKPQ_MODULE_CSC); // order 0 is the 1st module (CSC) in the pipeline
+        rkpq_cgc_cfg *pCgcConfig = (rkpq_cgc_cfg *)rkpq_get_default_cfg(ctx, 1, RKPQ_MODULE_CGC);  // order 1 is the 2nd module (CGC) in the pipeline
+        rkpq_csc_cfg *pCscConfig1 = (rkpq_csc_cfg *)rkpq_get_default_cfg(ctx, 2, RKPQ_MODULE_CSC); // order 2 is the last module(CSC) in the pipeline
+
+        // set the CSC pipeline format change info: from the src pixel format to RGB888 full-range
+        //!NOTE: CSC模块输入格式和色彩空间一定和src一致
+        //!NOTE: 由于后续的CGC模块只支持RGB格式, 故这里CSC的输出格式必须是RGB，且色彩空间必须是RGB full-range
+        if (pCscConfig0)
+        {
+            pCscConfig0->stPipeFmtInfo.nSrcClrSpc = stSrcImgInfo.nColorSpace;
+            pCscConfig0->stPipeFmtInfo.nSrcPixFmt = stSrcImgInfo.nPixFmt;
+            //!NOTE: 目标dst格式必须是RGB, 这里需要先转成RGB888, 色彩空间必须是full-range
+            pCscConfig0->stPipeFmtInfo.nDstClrSpc = RKPQ_CLR_SPC_RGB_FULL; // default RGBFULL
+            pCscConfig0->stPipeFmtInfo.nDstPixFmt = RKPQ_IMG_FMT_RGB; // default RGB
+
+        } else {
+            printf("Warning: failed to get the CSC_0 config!\n");
+            return -1;
+        }
+
+        if(pCgcConfig)
+        {
+            pCgcConfig->bEnableCGC = 1;
+            //matrix coefficients determined by "nCgcMatCoef" below; if selecting other modes, matrix coefficients would be set in internal module
+            pCgcConfig->nCgcMatMode = RKPQ_CGC_MANUAL;
+            // default set as gamma 2.2
+            pCgcConfig->nCgcTrcMode = RKPQ_CGC_TRC_DEFAULT;
+            // 10bit fixpoint color gamut converting matrix coefficients from testing result by user; Only works when pCgcConfig->nCgcMatMode == RKPQ_CGC_MANUAL
+            //Example:
+            pCgcConfig->nCgcMatCoef[0] = 1376; //m[0][0]
+            pCgcConfig->nCgcMatCoef[1] = -289; //m[0][1]
+            pCgcConfig->nCgcMatCoef[2] = -63;  //m[0][2]
+            pCgcConfig->nCgcMatCoef[3] = -67;  //m[1][0]
+            pCgcConfig->nCgcMatCoef[4] = 1102; //m[1][1]
+            pCgcConfig->nCgcMatCoef[5] = -11;  //m[1][2]
+            pCgcConfig->nCgcMatCoef[6] = 3;    //m[2][0]
+            pCgcConfig->nCgcMatCoef[7] = -20;  //m[2][1]
+            pCgcConfig->nCgcMatCoef[8] = 1041; //m[2][2]
+
+            pCgcConfig->bEnablePaperMode = 1;  //if enable papermode
+            pCgcConfig->nTextureStrength = 1;  //if paper texure strength is set as 1 (range 0~15)
+        }
+
+        // set the CSC pipeline format change info: from the CGC output to the dst pixel format
+        if (pCscConfig1)
+        {
+            pCscConfig1->stPipeFmtInfo.nSrcClrSpc = pCscConfig0->stPipeFmtInfo.nDstClrSpc;
+            pCscConfig1->stPipeFmtInfo.nSrcPixFmt = pCscConfig0->stPipeFmtInfo.nDstPixFmt;
+            pCscConfig1->stPipeFmtInfo.nDstClrSpc = stDstImgInfo.nColorSpace;
+            pCscConfig1->stPipeFmtInfo.nDstPixFmt = stDstImgInfo.nPixFmt;
+        } else {
+            printf("Warning: failed to get the CSC_1 config!\n");
+            return -1;
+        }
+    }
+    return ret;
+}
+
+
+/* Below code shows a pipeline example for the only BLR module */
+/* The data flow is: [1920x1080 yuv420sp/rgb888/rgba8888] =BLR=> [1920x1080 yuv420sp/rgb888/rgba8888] */
+int setPipelineDemoBLR(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc_params *pProcParam)
+{
+    int ret = 0;
+
+    /* set init parameters */
+    if (pInitParam)
+    {
+        /* set the custom pipeline order */
+        pInitParam->aModPipeOrder[0] = RKPQ_MODULE_BLR;
+        pInitParam->nModNumInPipe = 1;  // only 1 module in the pipeline
+        pInitParam->nInitFlag = RKPQ_FLAG_ASYNC_MODE;
+    }
+
+    /* set proc parameters */
+    if (pProcParam)
+    {
+        rkpq_imgbuf_info &stSrcImgInfo = pProcParam->stSrcImgInfo;
+        rkpq_imgbuf_info &stDstImgInfo = pProcParam->stDstImgInfo;
+
+        /* set the src image info */
+    #if 0 // NV12
+        stSrcImgInfo.nColorSpace    = RKPQ_CLR_SPC_YUV_601_FULL;// see rkpq_clr_spc
+        stSrcImgInfo.nPixFmt        = RKPQ_IMG_FMT_NV12;        // see rkpq_img_fmt
+        stSrcImgInfo.nPixWid        = 1920;                     // set the input image width
+        stSrcImgInfo.nPixHgt        = 1080;                     // set the input image height
+        stSrcImgInfo.nEleDepth      = 8;                        // set the first component(Y or R) depth [bit]
+        stSrcImgInfo.nAlignment     = 128;                      // set the pitch alignment [byte], better equal to 'imgAlignment' queried before
+        stSrcImgInfo.aWidStrides[0] = 1920;                     // in this case, no padding in the width dimension
+        stSrcImgInfo.aHgtStrides[0] = 1080;                     // in this case, there are 8 lines padding after the first (luma) plane
+    #elif 1 // RGB
+        stSrcImgInfo.nColorSpace    = RKPQ_CLR_SPC_RGB_FULL;    // see rkpq_clr_spc
+        stSrcImgInfo.nPixFmt        = RKPQ_IMG_FMT_RGB;         // see rkpq_img_fmt
+        stSrcImgInfo.nPixWid        = 1920;                     // set the input image width
+        stSrcImgInfo.nPixHgt        = 1080;                     // set the input image height
+        stSrcImgInfo.nEleDepth      = 8;                        // set the first component(Y or R) depth [bit]
+        stSrcImgInfo.nAlignment     = 64;                       // set the pitch alignment [byte], better equal to 'imgAlignment' queried before
+        stSrcImgInfo.aWidStrides[0] = 5760;                     // in this case, no padding in the width dimension
+        stSrcImgInfo.aHgtStrides[0] = 1080;                     // in this case, there are 8 lines padding after the first (luma) plane
+    #elif 1 // RGBA
+        stSrcImgInfo.nColorSpace    = RKPQ_CLR_SPC_RGB_FULL;    // see rkpq_clr_spc
+        stSrcImgInfo.nPixFmt        = RKPQ_IMG_FMT_RGBA;        // see rkpq_img_fmt
+        stSrcImgInfo.nPixWid        = 1920;                     // set the input image width
+        stSrcImgInfo.nPixHgt        = 1080;                     // set the input image height
+        stSrcImgInfo.nEleDepth      = 8;                        // set the first component(Y or R) depth [bit]
+        stSrcImgInfo.nAlignment     = 64;                       // set the pitch alignment [byte], better equal to 'imgAlignment' queried before
+        stSrcImgInfo.aWidStrides[0] = 7680;                     // in this case, no padding in the width dimension
+        stSrcImgInfo.aHgtStrides[0] = 1080;                     // in this case, there are 8 lines padding after the first (luma) plane
+    #endif
+
+
+        /* set the dst image info */
+    #if 0 // NV12
+        stDstImgInfo.nColorSpace    = RKPQ_CLR_SPC_YUV_601_FULL;// see rkpq_clr_spc
+        stDstImgInfo.nPixFmt        = RKPQ_IMG_FMT_NV12;        // see rkpq_img_fmt
+        stDstImgInfo.nPixWid        = 1920;                     // set the input image width
+        stDstImgInfo.nPixHgt        = 1080;                     // set the input image height
+        stDstImgInfo.nEleDepth      = 8;                        // set the first component(Y or R) depth [bit]
+        stDstImgInfo.nAlignment     = 128;                      // set the pitch alignment [byte], better equal to 'imgAlignment' queried before
+        stDstImgInfo.aWidStrides[0] = 1920;                     // in this case, no padding in the width dimension
+        stDstImgInfo.aHgtStrides[0] = 1080;                     // in this case, there are 8 lines padding after the first (luma) plane
+    #elif 1 // RGB
+        stDstImgInfo.nColorSpace    = RKPQ_CLR_SPC_RGB_FULL;    // see rkpq_clr_spc
+        stDstImgInfo.nPixFmt        = RKPQ_IMG_FMT_RGB;         // see rkpq_img_fmt
+        stDstImgInfo.nPixWid        = 1920;                     // set the input image width
+        stDstImgInfo.nPixHgt        = 1080;                     // set the input image height
+        stDstImgInfo.nEleDepth      = 8;                        // set the first component(Y or R) depth [bit]
+        stDstImgInfo.nAlignment     = 64;                       // set the pitch alignment [byte], better equal to 'imgAlignment' queried before
+        stDstImgInfo.aWidStrides[0] = 5760;                     // in this case, no padding in the width dimension
+        stDstImgInfo.aHgtStrides[0] = 1080;                     // in this case, there are 8 lines padding after the first (luma) plane
+    #elif 1 // RGBA
+        stDstImgInfo.nColorSpace    = RKPQ_CLR_SPC_RGB_FULL;    // see rkpq_clr_spc
+        stDstImgInfo.nPixFmt        = RKPQ_IMG_FMT_RGBA;        // see rkpq_img_fmt
+        stDstImgInfo.nPixWid        = 1920;                     // set the input image width
+        stDstImgInfo.nPixHgt        = 1080;                     // set the input image height
+        stDstImgInfo.nEleDepth      = 8;                        // set the first component(Y or R) depth [bit]
+        stDstImgInfo.nAlignment     = 64;                       // set the pitch alignment [byte], better equal to 'imgAlignment' queried before
+        stDstImgInfo.aWidStrides[0] = 7680;                     // in this case, no padding in the width dimension
+        stDstImgInfo.aHgtStrides[0] = 1080;                     // in this case, there are 8 lines padding after the first (luma) plane
+    #endif
+
+        /** (optional)
+         * call rkpq_query() to get the remain image buffer infos
+         * no need to call rkpq_query() ONLY IF you know and filled all the rkpq_imgbuf_info of the src & dst images
+         */
+    #if 1 /* not necessary */
+        ret |= rkpq_query(NULL, RKPQ_QUERY_IMG_BUF_INFO, sizeof(rkpq_imgbuf_info), &stSrcImgInfo);
+        ret |= rkpq_query(NULL, RKPQ_QUERY_IMG_BUF_INFO, sizeof(rkpq_imgbuf_info), &stDstImgInfo);
+        if (ret)
+        {
+            printf("Failed to call rkpq_query() %d, Please check the API parameters!\n", ret);
+            return ret;
+        }
+
+        /* !!! change the width / height stride IF the query result of rkpq_imgbuf_info is different with the real buffer !!! */
+        // stDstImgInfo.aWidStrides[1] = 1920; // 1856 -> 1920, padding aligns to 64 bytes on the chroma plane
+        // stDstImgInfo.aPlaneSizes[1] += (1920 - 1856) * stDstImgInfo.aHgtStrides[1]; // update the chroma plane size
+        // stDstImgInfo.nFrameSize += (1920 - 1856) * stDstImgInfo.aHgtStrides[1]; // update the total frame size
+    #endif
+
+        /* (optional) get the module tuning configs and change the parameter manually if necessary */
+        if (ctx)
+        {
+            rkpq_blr_cfg *pConfig = (rkpq_blr_cfg *)rkpq_get_default_cfg(ctx, 0, RKPQ_MODULE_BLR);   // order 0 is the BLR module in the pipeline
+            pConfig->stPipeFmtInfo.nSrcClrSpc = stSrcImgInfo.nColorSpace;
+            pConfig->stPipeFmtInfo.nSrcPixFmt = stSrcImgInfo.nPixFmt;
+            pConfig->stPipeFmtInfo.nDstClrSpc = stDstImgInfo.nColorSpace;
+            pConfig->stPipeFmtInfo.nDstPixFmt = stDstImgInfo.nPixFmt;
+            pConfig->bEnableBLR     =   1;// [i]  {0, (1)} enable BLR feature, the BLR module will run with GPU
+            pConfig->nCenterX       = 960;// [i] blur region center point-x [0, (960), 1920)
+            pConfig->nCenterY       = 540;// [i] blur region center point-y [0, (540), 1080)
+            pConfig->nRadius        = 100;// [i] blur region radius         [0, (100), Inf)
+            pConfig->nGaussKerWid   =   3;// [i] gauss ker width            {1, (3), 5, 7, ..., 63}
+            pConfig->nGaussKerHgt   =   3;// [i] gauss ker herght           {1, (3), 5, 7, ..., 63}
+            pConfig->fGaussKerSigma = 0.5;// [i] gauss ker sigma            [0, (0.5), Inf)
+        }
+    }
+
+    return ret;
+}
+
+
+/* Below code shows a pipeline example for the only MSSR module */
+/* The data flow is: [(512)480x270 nv24 + 960x544 rgb] =MSSR=> [1920x1080 nv12] */
+int setPipelineDemoMSSR_FE(rkpq_context ctx, rkpq_init_params *pInitParam, rkpq_proc_params *pProcParam)
+{
+    int ret = 0;
+
+    /* set init parameters */
+    if (pInitParam)
+    {
+        /* set the custom pipeline order */
+        pInitParam->aModPipeOrder[0] = RKPQ_MIXTURE_MSSR;
+        pInitParam->nModNumInPipe = 1;  // only 1 module in the pipeline
+        pInitParam->nInitFlag = RKPQ_FLAG_ASYNC_MODE;
+    }
+
+    /* set proc parameters */
+    if (pProcParam)
+    {
+        rkpq_imgbuf_info stSrcImgInfo[4] = {0};
+        rkpq_imgbuf_info stDstImgInfo[1] = {0};
+
+        /* set the src image info */
+        // NV24[n]
+        stSrcImgInfo[0].nColorSpace    = RKPQ_CLR_SPC_YUV_601_FULL;// see rkpq_clr_spc
+        stSrcImgInfo[0].nPixFmt        = RKPQ_IMG_FMT_NV24;        // see rkpq_img_fmt
+        stSrcImgInfo[0].nPixWid        = 480;                      // set the input image width
+        stSrcImgInfo[0].nPixHgt        = 270;                      // set the input image height
+        stSrcImgInfo[0].nEleDepth      = 8;                        // set the first component(Y or R) depth [bit]
+        stSrcImgInfo[0].nAlignment     = 128;                      // set the pitch alignment [byte], better equal to 'imgAlignment' queried before
+        stSrcImgInfo[0].aWidStrides[0] = 512;                      // in this case, no padding in the width dimension
+        stSrcImgInfo[0].aHgtStrides[0] = 270;                      // in this case, there are 8 lines padding after the first (luma) plane
+        // NV24[n-1]
+        memcpy(&stSrcImgInfo[1], &stSrcImgInfo[0], sizeof(rkpq_imgbuf_info));
+        // NV24[n-2]
+        memcpy(&stSrcImgInfo[2], &stSrcImgInfo[0], sizeof(rkpq_imgbuf_info));
+        // RGB[n]
+        stSrcImgInfo[3].nColorSpace    = RKPQ_CLR_SPC_RGB_FULL;    // see rkpq_clr_spc
+        stSrcImgInfo[3].nPixFmt        = RKPQ_IMG_FMT_RGB;         // see rkpq_img_fmt
+        stSrcImgInfo[3].nPixWid        = 960;                      // set the input image width
+        stSrcImgInfo[3].nPixHgt        = 544;                      // set the input image height
+        stSrcImgInfo[3].nEleDepth      = 8;                        // set the first component(Y or R) depth [bit]
+        stSrcImgInfo[3].nAlignment     = 64;                       // set the pitch alignment [byte], better equal to 'imgAlignment' queried before
+        stSrcImgInfo[3].aWidStrides[0] = 2880;                     // in this case, no padding in the width dimension
+        stSrcImgInfo[3].aHgtStrides[0] = 544;                      // in this case, there are 8 lines padding after the first (luma) plane
+
+        /* set the dst image info */
+        // NV12[n]
+        stDstImgInfo[0].nColorSpace    = RKPQ_CLR_SPC_YUV_601_FULL;// see rkpq_clr_spc
+        stDstImgInfo[0].nPixFmt        = RKPQ_IMG_FMT_NV12;        // see rkpq_img_fmt
+        stDstImgInfo[0].nPixWid        = 1920;                     // set the input image width
+        stDstImgInfo[0].nPixHgt        = 1080;                     // set the input image height
+        stDstImgInfo[0].nEleDepth      = 8;                        // set the first component(Y or R) depth [bit]
+        stDstImgInfo[0].nAlignment     = 128;                      // set the pitch alignment [byte], better equal to 'imgAlignment' queried before
+        stDstImgInfo[0].aWidStrides[0] = 1920;                     // in this case, no padding in the width dimension
+        stDstImgInfo[0].aHgtStrides[0] = 1080;                     // in this case, there are 8 lines padding after the first (luma) plane
+
+
+        /** (optional)
+         * call rkpq_query() to get the remain image buffer infos
+         * no need to call rkpq_query() ONLY IF you know and filled all the rkpq_imgbuf_info of the src & dst images
+         */
+    #if 1 /* not necessary */
+        for (int i=0; i<4; i++)
+        {
+            ret |= rkpq_query(NULL, RKPQ_QUERY_IMG_BUF_INFO, sizeof(rkpq_imgbuf_info), &stSrcImgInfo[i]);
+        }
+        for (int i=0; i<1; i++)
+        {
+            ret |= rkpq_query(NULL, RKPQ_QUERY_IMG_BUF_INFO, sizeof(rkpq_imgbuf_info), &stDstImgInfo[i]);
+        }
+        if (ret)
+        {
+            printf("Failed to call rkpq_query() %d, Please check the API parameters!\n", ret);
+            return ret;
+        }
+    #endif
+
+        /* (optional) get the module tuning configs and change the parameter manually if necessary */
+        if (ctx)
+        {
+            rkpq_mssr_cfg *pConfig = (rkpq_mssr_cfg *)rkpq_get_default_cfg(ctx, 0, RKPQ_MIXTURE_MSSR);   // order 0 is the MSSR module in the pipeline
+            pConfig->bEnableFE   = 1;
+            pConfig->aDstIdx[0]  = 0;
+            pConfig->nDstNum     = 1;
         }
     }
 

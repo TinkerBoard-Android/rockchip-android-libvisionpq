@@ -69,7 +69,7 @@ int main(int argc, const char *argv[])
     int logLevel = 4;
     ret |= rkpq_set_loglevel(nullptr, logLevel);             /* 日志等级说明请看api文件 */
     ret |= rkpq_set_cache_path(nullptr, "/data/rkalgo/", 1); /* 参数说明请看api文件 */
-    ret |= rkpq_set_target_platform("rk3588");               /* reserved */
+    // ret |= rkpq_set_target_platform("rk3588");               /* reserved */
     if (ret)
     {
         printf("Failed to set loglevel or cache_path or target_platform! %d\n", ret);
@@ -78,7 +78,7 @@ int main(int argc, const char *argv[])
 
     /* 步骤1: 填写初始化参数'rkpq_init_params'然后通过接口`rkpq_init()`初始化`rkpq_context`上下文实例 */
     initParams.nInitFlag = RKPQ_FLAG_DEFAULT;
-    // initParams.nInitFlag |= RKPQ_FLAG_ASYNC_MODE;    // 某些模块支持异步模式，请指明这个flag
+    initParams.nInitFlag |= RKPQ_FLAG_ASYNC_MODE;       // 某些模块支持异步模式，请指明这个flag
     initParams.aModPipeOrder[0] = RKPQ_MIXTURE_MSSR;    // 这里pipeline中只包含`MSSR`这一个模块
     initParams.nModNumInPipe = 1;                       // 这里pipeline中模块数量为1
     ret = rkpq_init(&context, &initParams);             // 注意这里参数是两个指针!
@@ -166,7 +166,7 @@ int main(int argc, const char *argv[])
     #endif
         stSrcImgInfos[0].nBufferSize = stSrcImgInfos[0].nFrameSize; /* real buffer sieze, should be >= nFrameSize! unit: byte */
         stDstImgInfos[0].nBufferSize = stDstImgInfos[0].nFrameSize; /* real buffer sieze, should be >= nFrameSize! unit: byte */
-        
+
         /* 步骤4.2: 帧级参数更新 */
         // 本模块MSSR的分辨率变换信息`stPipeResInfo`需要填写
         pConfig->stPipeResInfo.nSrcImgWid = stSrcImgInfos[0].nPixWid;
@@ -182,7 +182,7 @@ int main(int argc, const char *argv[])
         memcpy(&pConfig->pSRConfig->stPipeResInfo, &pConfig->stPipeResInfo, sizeof(rkpq_pipe_res_info));
         pConfig->bEnableMEMC = 0;           // 这里关闭了 MEMC 子模块
         pConfig->pSDConfig->bEnableSD = 1;  // 这里开启了 SD 子模块
-        
+
         /* 步骤4.3: 设置输入和输出 */
         // 设置输入输出图像和缓冲区信息；一般每帧的缓冲区不同，每帧都要设置一次
         rkpq_set_inputs(context, stSrcImgInfos, 1);

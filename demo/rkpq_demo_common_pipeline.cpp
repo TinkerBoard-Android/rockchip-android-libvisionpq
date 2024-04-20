@@ -16,7 +16,7 @@
 //
 //////////////////////////////////////////////////////////////////////////
 //
-// Last update 2024-04-10 for librkswpq.so v0.1.0
+// Last update 2024-06-13 for librkswpq.so v0.3.0
 
 #include "rkpq_api.h"
 #include <stdio.h>
@@ -78,7 +78,7 @@ int main(int argc, const char *argv[])
     /* 在初始化`rkpq_context`之前可以设置日志等级、缓存路径等非必须操作 */
     ret |= rkpq_set_loglevel(nullptr, logLevel);             /* 日志等级说明请看api文件 */
     ret |= rkpq_set_cache_path(nullptr, "/data/rkalgo/", 1); /* 参数说明请看api文件 */
-    ret |= rkpq_set_target_platform("rk3588");               /* reserved */
+    // ret |= rkpq_set_target_platform("rk3588");               /* reserved */
     if (ret)
     {
         printf("Failed to set loglevel or cache_path or target_platform! %d\n", ret);
@@ -188,12 +188,12 @@ int main(int argc, const char *argv[])
     }
 
     // 设置CSC模块的格式变换信息，
-    //!NOTE: CSC0模块输入格式和色彩空间一定和src一致，CSC1模块输出格式和色彩空间一定和dst一致
+    //!NOTE: CSC0模块的输入格式和色彩空间一定和src一致，CSC1模块的输出格式和色彩空间一定和dst一致
     //!NOTE: 由于后续的DCI/ACM/SHP模块只支持YUV格式, 故这里CSC0的输出格式必须是YUV，且色彩空间必须是full-range
     pCscConfig0->stPipeFmtInfo.nSrcClrSpc = stSrcImgInfo.nColorSpace;
     pCscConfig0->stPipeFmtInfo.nSrcPixFmt = stSrcImgInfo.nPixFmt;
     pCscConfig0->stPipeFmtInfo.nDstClrSpc = RKPQ_CLR_SPC_YUV_709_FULL; // default 709F
-    pCscConfig0->stPipeFmtInfo.nDstPixFmt = RKPQ_IMG_FMT_NV24; // default RGB->NV24
+    pCscConfig0->stPipeFmtInfo.nDstPixFmt = RKPQ_IMG_FMT_NV24; // default YUV444_NV24
     //!NOTE: 如果目标dst格式是YUV(如NV12), 这里可以直接输出成目标格式(不必非得转成NV24,可以减少计算量), 但色彩空间必须是full-range
     // if (stDstImgInfo.nPixFmt < RKPQ_IMG_FMT_YUV_MAX) {
     //     pCscConfig0->stPipeFmtInfo.nDstClrSpc = stDstImgInfo.nColorSpace | 1; // to full-range
@@ -208,8 +208,8 @@ int main(int argc, const char *argv[])
     //!NOTE: 由于前面两个模块(DCI/ACM)都不改变输入输出图像格式，故这里ZME的输入格式必定是CSC0的输出格式，输出格式一般情况下不改变
     pZmeConfig->stPipeFmtInfo.nSrcClrSpc = pCscConfig0->stPipeFmtInfo.nDstClrSpc;
     pZmeConfig->stPipeFmtInfo.nSrcPixFmt = pCscConfig0->stPipeFmtInfo.nDstPixFmt;
-    pZmeConfig->stPipeFmtInfo.nDstClrSpc = pCscConfig0->stPipeFmtInfo.nDstClrSpc;
-    pZmeConfig->stPipeFmtInfo.nDstPixFmt = pCscConfig0->stPipeFmtInfo.nDstPixFmt;
+    pZmeConfig->stPipeFmtInfo.nDstClrSpc = pZmeConfig->stPipeFmtInfo.nSrcClrSpc;
+    pZmeConfig->stPipeFmtInfo.nDstPixFmt = pZmeConfig->stPipeFmtInfo.nSrcPixFmt;
     //!NOTE: ZME的输出在YUV格式的情况下可以直接在YUV4xxsp(NV24/NV16/NV12)之间转换，这里也可以不要此步骤，直接交给最后一级CSC完成转换
     // if (stDstImgInfo.nPixFmt <= RKPQ_IMG_FMT_NV12) {
     //     pZmeConfig->stPipeFmtInfo.nDstPixFmt = stDstImgInfo.nPixFmt;
@@ -219,7 +219,11 @@ int main(int argc, const char *argv[])
     pZmeConfig->stPipeResInfo.nSrcImgHgt = stSrcImgInfo.nPixHgt;
     pZmeConfig->stPipeResInfo.nDstImgWid = stDstImgInfo.nPixWid;
     pZmeConfig->stPipeResInfo.nDstImgHgt = stDstImgInfo.nPixHgt;
-
+    //!NOTE: CSC1模块的输入格式是前一级ZME(SHP不改变输出格式)的输出格式和色彩空间, 输出格式和色彩空间一定和dst一致
+    pCscConfig1->stPipeFmtInfo.nSrcClrSpc = pZmeConfig->stPipeFmtInfo.nDstClrSpc;
+    pCscConfig1->stPipeFmtInfo.nSrcPixFmt = pZmeConfig->stPipeFmtInfo.nDstPixFmt;
+    pCscConfig1->stPipeFmtInfo.nDstClrSpc = stDstImgInfo.nColorSpace; // from full to limited
+    pCscConfig1->stPipeFmtInfo.nDstPixFmt = stDstImgInfo.nPixFmt; // from NV24 to NV12
 
     /* 步骤4: 调用`rkpq_proc()`执行算法 */
     int frameIdx = 0;
@@ -231,19 +235,35 @@ int main(int argc, const char *argv[])
         /* 更新输入帧数据 */
     #if USE_HARDWARE_BUFFER
         // 使用带fd的硬件缓冲区，算法内部会对其进行映射使用，该方案可以实现零拷贝，推荐使用（ARM下一般需要至少64byte对齐）
-        int fdSrc = 0, fdDst = 0;           // create hardware buffer then import through fd value
-        int fdSrcIdx = 0, fdDstIdx = 0;     // create hardware buffer then import through fd value
+        int fdSrc = 0, fdDst = 0;           // valid fd range: > 0
+        int fdSrcIdx = 0, fdDstIdx = 0;     // to set
+        int srcBufSize = 0, dstBufSize = 0; // valid buffer size: >= rkpq_imgbuf_info::nFrameSize
         /**
-         * 填入提前申请的fd-buffer属性，有fd的话，虚地址可以不用填
-         * 注意: 一个buffer被释放后再次申请，fd值可能保持不变，但实际buffer对象已经是另一个新的了，这种现象经常出现在如播放器片源切换、HDMI信号切换等场景。
-         *      由于算法内部会对buffer创建映射缓存列表，防止重复映射，提高性能，在这种情况下，缓存对应的buffer实际已经失效，这会导致使用了非法的脏数据。
-         *      使用`nFdIndex`属性可以对缓存的有效性做一次双重检验，避免出现上诉问题。 如果你的fd-buffer有对应的唯一标识符，可以使用此唯一标识符作为`nFdIndex`；
+         * 填入提前申请的fd-buffer属性；有fd的话，虚地址（`rkpq_imgbuf_info::aPlaneAddrs`）如果没有映射过可以不用填。
+         *
+         * @note
+         * SWPQ的零拷贝机制: 算法库内部会对'fd-buffer'创建映射缓存列表，防止重复映射，以提高性能。
+         *      该机制默认启动，适合外部缓冲区采用循环缓冲区的情况（即Circular/Ring Buffer）。
+         *      若外部缓冲区并非采用循环缓冲区的情况，可能会出现以下问题:
+         *
+         * 可能存在问题的场景: 播放器片源切换、HDMI信号切换等场景。该场景下可能存在一批缓冲区buffer的释放和申请。
+         *      比如解码器在播放片源退出后，会将上一个片源使用的一组buffer全部释放；如果开始播放新的片源，会再次申请一组新的buffer.
+         *
+         * 可能存在的问题1: 一个fd-buffer被释放后再次申请，fd值可能保持不变，但实际buffer对象已经是另一个。由于在这种情况下，缓存对应的buffer实际已经失效，这会导致使用了非法的脏数据。
+         *      问题表现为: 播放过程中每输出几帧都会出现一次固定的历史帧结果，画面存在闪烁。
+         * 可能存在的问题2: 每次新申请的fd-buffer fd值都不同，会导致内部缓存列表长度一直增长，旧的缓存buffer没有解映射，进而导致GPU内存占用持续增高。
+         *
+         * 建议1: 建议填写`rkpq_imgbuf_info::nFdIndex`属性，可以对缓存的有效性做一次双重检验，以解决上述问题1。
+         *      如果你的fd-buffer有对应的唯一标识符，可以使用此值；
          *      如果没有唯一标识符，可以使用一个初始数值作为（当前这一组所有）buffer的`nFdIndex`，在（当前这一组所有）buffer被释放后将此数值递增。
+         * 建议2: 建议在有fd-buffer释放的情况下，手动调用一次`rkpq_clear_caches()`接口以清空buffer缓存，可以避免上述问题1和2。
          */
         stSrcImgInfo.nFdValue = fdSrc;
         stDstImgInfo.nFdValue = fdDst;
         stSrcImgInfo.nFdIndex = fdSrcIdx;   // unique identifier of the device buffer
         stDstImgInfo.nFdIndex = fdDstIdx;
+        stSrcImgInfo.nBufferSize = srcBufSize; /* real buffer sieze, should be >= nFrameSize! unit: byte */
+        stDstImgInfo.nBufferSize = dstBufSize; /* real buffer sieze, should be >= nFrameSize! unit: byte */
     #else
         // 从文件读取输入数据
         if (fpSrc)
