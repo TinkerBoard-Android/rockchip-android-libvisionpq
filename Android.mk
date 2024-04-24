@@ -34,9 +34,6 @@
 # limitations under the License.
 LOCAL_PATH := $(call my-dir)
 
-ifeq ($(strip $(BOARD_USES_LIBPQ)),true)
-
-
 # RK3588
 ifneq ($(filter rk3588, $(strip $(TARGET_BOARD_PLATFORM))), )
 TARGET_SOC_PLATFORM := rk3588
@@ -47,7 +44,7 @@ endif
 # rk3576
 ifneq ($(filter rk3576, $(strip $(TARGET_BOARD_PLATFORM))), )
 TARGET_SOC_PLATFORM := rk3576
-USE_LIBSWPQ := true
+USE_LIBSWPQ := false
 USE_LIBHWPQ := true
 endif
 
@@ -102,4 +99,3 @@ LOCAL_MODULE_SUFFIX := .so
 include $(BUILD_PREBUILT)
 endif
 
-endif
