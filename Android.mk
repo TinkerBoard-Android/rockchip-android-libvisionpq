@@ -57,6 +57,9 @@ LOCAL_MODULE := librkswpq
 LOCAL_MODULE_CLASS := SHARED_LIBRARIES
 LOCAL_MODULE_SUFFIX := .so
 
+LOCAL_SHARED_LIBRARIES += \
+	librknnrt
+
 ifneq ($(strip $(TARGET_2ND_ARCH)), )
 LOCAL_MULTILIB := both
 LOCAL_SRC_FILES_$(TARGET_ARCH) := $(TARGET_PQ_LIB_PATH)/$(TARGET_CPU_ABI)/librkswpq.so
@@ -71,12 +74,14 @@ LOCAL_MODULE_SUFFIX := .so
 include $(BUILD_PREBUILT)
 endif
 
+ifneq ($(filter rk3576, $(strip $(TARGET_BOARD_PLATFORM))), )
 include $(CLEAR_VARS)
 LOCAL_MODULE := rkaipq_mssr_model0_EbookSR480to960_rknn162_rk3576.bin
 LOCAL_PROPRIETARY_MODULE := true
 LOCAL_MODULE_CLASS := ETC
 LOCAL_SRC_FILES := models/$(TARGET_SOC_PLATFORM)/rkaipq_mssr_model0_EbookSR480to960_rknn162_rk3576.bin
 include $(BUILD_PREBUILT)
+endif
 
 ## HWPQ lib
 ifeq ($(strip $(USE_LIBHWPQ)),true)
