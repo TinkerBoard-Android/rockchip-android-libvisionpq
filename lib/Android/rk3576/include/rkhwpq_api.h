@@ -32,15 +32,6 @@ extern "C"
 {
 #endif
 
-/* flags definition for rk_hwpq_init() */
-#define RKHWPQ_FLAG_DEFAULT               0x00000000
-#define RKHWPQ_FLAG_PERF_DETAIL           0x00000001  /* enable logging out performance info. reserved */
-#define RKHWPQ_FLAG_HIGH_PERFORM          0x00000002  /* fuse some PQ modules to achive high performence */
-#define RKHWPQ_FLAG_HIGH_PRECISION        0x00000004  /* enlarge bit width to achive high precision. reserved */
-#define RKHWPQ_FLAG_CALC_MEAN_LUMA        0x00000008  /* calculate mean luma value (full-range) when processing */
-#define RKHWPQ_FLAG_CVT_RANGE_ONLY        0x00000010  /* convert between full and limited range only, no PQ modules to run */
-#define RKHWPQ_FLAG_ASYNC_MODE            0x00000020  /* flag for async processing */ /* reserved */
-
 /* const numbers definition */
 #define RKHWPQ_MIN_IMAGE_WIDTH            128
 #define RKHWPQ_MIN_IMAGE_HEIGHT           128
@@ -51,7 +42,6 @@ extern "C"
 #define RKHWPQ_MAX_PERFORM_NUM            32  // max number of proc performence count
 #define RKHWPQ_MAX_IMG_FMT_NUM            32  // max number of supported image formats
 #define RKHWPQ_MAX_CLR_SPC_NUM            32  // max number of supported color spaces
-#define RKHWPQ_MAX_PQ_MODULE_NUM          32  // max number of supported PQ modules
 
 
 /* forward declaration */
@@ -64,30 +54,6 @@ struct _rk_hwpq_vdpp_info;
 struct _rk_hwpq_cfg;
 struct _rk_hwpq_reg;
 struct _rk_vop_status;
-struct _rk_hwpq_zme_cfg;
-
-typedef struct _rk_hwpq_pipe_res_info
-{
-    uint32_t    nSrcImgWid;
-    uint32_t    nSrcImgHgt;
-    uint32_t    nDstImgWid;
-    uint32_t    nDstImgHgt;
-} rk_hwpq_pipe_res_info;
-
-typedef struct _rk_hwpq_zme_cfg
-{
-    rk_hwpq_pipe_res_info  stPipeResInfo;  /* resolution change info, must set manually */
-
-    uint32_t    bEnableZME;                         // [0, (1)]
-    uint32_t    bEnableDeringing;                   // [0, (1)]
-    uint32_t    bEnableLimitControl;                // [0, (1)]
-    uint32_t    bEnableBilinearScaleForChroma;      // [(0), 1]
-    int16_t     aVerCoefs[8];                       // [0, 512]
-    int16_t     aHorCoefs[8];                       // [0, 512]
-
-    /* for future use */
-    uint32_t    aReservedData[8];                   // reserved for future use
-} rk_hwpq_zme_cfg;
 
 /* the RKHWPQ run modes */
 typedef enum _rk_hwpq_run_mode
@@ -111,20 +77,7 @@ typedef enum _rk_hwpq_platform
 typedef enum _rk_hwpq_query_cmd
 {
     RKHWPQ_QUERY_SDK_VERSION = 0,         /* get the SDK version info */
-    RKHWPQ_QUERY_PERF_INFO,               /* get the performence info after rk_hwpq_proc() */
-    RKHWPQ_QUERY_IMG_FMT_INPUT_SUPPORT,   /* get the supported image formats for input */
-    RKHWPQ_QUERY_IMG_FMT_OUTPUT_SUPPORT,  /* get the supported image formats for output */
-    RKHWPQ_QUERY_IMG_FMT_CHANGE_SUPPORT,  /* get the flag if enable change image format when running */
-    // RKHWPQ_QUERY_IMG_RES_INPUT_SUPPORT,   /* get the supported image resolutions for input */
-    // RKHWPQ_QUERY_IMG_RES_OUTPUT_SUPPORT,  /* get the supported image resolutions for output */
-    RKHWPQ_QUERY_IMG_RES_CHANGE_SUPPORT,  /* get the flag if enable change image resolution when running */
-    RKHWPQ_QUERY_IMG_COLOR_SPACE_SUPPORT, /* get the supported image color space */
-    RKHWPQ_QUERY_IMG_BUF_INFO,            /* get the image buffer infos with known image format & size */
-    RKHWPQ_QUERY_IMG_ALIGNMENT_OCL,       /* get the OpenCL image alignment size in width, unit: pixel */
-    RKHWPQ_QUERY_RKNN_SUPPORT,            /* get the RKNN supported flag for SR */
-    RKHWPQ_QUERY_MEAN_LUMA,               /* get the mean luma value (full-range) of the output image after rk_hwpq_proc() */
-    RKHWPQ_QUERY_MODULES_SUPPORT,         /* get the supported PQ modules */
-    // RKHWPQ_QUERY_3DLUT_AI_TABLE,          /* get the 3D-LUT table from RKNN result */
+    
     RKHWPQ_QUERY_MAX,                     /* the max query command value, please DO NOT use this item! */
 } rk_hwpq_query_cmd;
 
@@ -182,29 +135,6 @@ typedef struct _rk_hwpq_version_info
     uint32_t    nVerRvson;      /* the revision number */
     char        sVerInfo[64];   /* the full version info string */
 } rk_hwpq_version_info;
-
-
-/* the information for RKHWPQ_QUERY_PERF_INFO */
-typedef struct _rk_hwpq_perf_info
-{
-    float   fTimeCostInit;      /* cost time of rk_hwpq_init() interface */
-    float   fTimeCostDeinit;    /* invalid */
-    float   fTimeCostProcs[RKHWPQ_MAX_PERFORM_NUM];
-} rk_hwpq_perf_info;
-
-/* the information for RKHWPQ_QUERY_IMG_FMT_INPUT_SUPPORT & RKHWPQ_QUERY_IMG_FMT_OUTPUT_SUPPORT */
-typedef struct _rk_hwpq_imgfmt_info
-{
-    int32_t     aValidFmts[RKHWPQ_MAX_IMG_FMT_NUM];   /* see rk_hwpq_img_fmt */
-    uint32_t    nValidFmtNum;                       /* number of valid formats, <= RKHWPQ_MAX_IMG_FMT_NUM */
-} rk_hwpq_imgfmt_info;
-
-/* the information for RKHWPQ_QUERY_IMG_COLOR_SPACE_SUPPORT */
-typedef struct _rk_hwpq_clrspc_info
-{
-    int32_t     aValidSpcs[RKHWPQ_MAX_CLR_SPC_NUM];   /* see rk_hwpq_clr_spc */
-    uint32_t    nValidSpcNum;                       /* number of valid color spaces, <= RKHWPQ_MAX_CLR_SPCE_NUM */
-} rk_hwpq_clrspc_info;
 
 /**
  * the information for RKHWPQ_QUERY_IMG_BUF_INFO
@@ -736,18 +666,6 @@ int rk_hwpq_deinit(rk_hwpq_context ctx);
  *  |       Query Command               |   Need A Context  |   Return Type     |
  *  | --------------------------------- | ----------------- | ----------------- |
  *  | RKHWPQ_QUERY_SDK_VERSION            |       no          | rk_hwpq_version_info |
- *  | RKHWPQ_QUERY_PERF_INFO              |       YES         | rk_hwpq_perf_info    |
- *  | RKHWPQ_QUERY_IMG_FMT_INPUT_SUPPORT  |       no          | rk_hwpq_imgfmt_info  |
- *  | RKHWPQ_QUERY_IMG_FMT_OUTPUT_SUPPORT |       no          | rk_hwpq_imgfmt_info  |
- *  | RKHWPQ_QUERY_IMG_FMT_CHANGE_SUPPORT |       no          | uint32_t          |
- *  | RKHWPQ_QUERY_IMG_RES_CHANGE_SUPPORT |       no          | uint32_t          |
- *  | RKHWPQ_QUERY_IMG_COLOR_SPACE_SUPPORT|       no          | rk_hwpq_clrspc_info  |
- *  | RKHWPQ_QUERY_IMG_BUF_INFO           |       no          | rk_hwpq_imgbuf_info  |
- *  | RKHWPQ_QUERY_IMG_ALIGNMENT_OCL      |       YES         | uint32_t          |
- *  | RKHWPQ_QUERY_RKNN_SUPPORT           |       YES         | uint32_t          |
- *  | RKHWPQ_QUERY_MEAN_LUMA              |       YES         | uint32_t          |
- *  | RKHWPQ_QUERY_MODULES_SUPPORT        |       YES         | rk_hwpq_module_info  |
- *  | RKHWPQ_QUERY_3DLUT_AI_TABLE         |       YES         | uint16_t[14739]   |
  */
 int rk_hwpq_query(rk_hwpq_context ctx, rk_hwpq_query_cmd cmd, size_t size, void *info);
 
@@ -766,6 +684,8 @@ void rk_hwpq_set_shp_default_config(rk_hwpq_shp_cfg* p_shp_cfg);
 void rk_hwpq_set_dci_default_config(rk_hwpq_dci_cfg* p_dci_cfg);
 void rk_hwpq_set_acm_default_config(rk_hwpq_acm_cfg* p_acm_cfg);
 void rk_hwpq_set_csc_default_config(rk_hwpq_csc_cfg* p_csc_cfg);
+
+void rk_hwpq_set_vop_base_config(rk_hwpq_cfg* p_hwpq_cfg, const char* p_cfg_path);
 
 #ifdef __cplusplus
 }
